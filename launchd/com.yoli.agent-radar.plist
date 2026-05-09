@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.yoli.agent-radar</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>/Users/yoligehude/Desktop/all/openall/agent-radar/src/main.py</string>
+    </array>
+
+    <!-- 每周一 06:00 执行 -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>1</integer>
+        <key>Hour</key>
+        <integer>6</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/yoligehude/Desktop/all/openall/agent-radar/logs/stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/yoligehude/Desktop/all/openall/agent-radar/logs/stderr.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/yoligehude/Desktop/all/openall/agent-radar</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>GITHUB_TOKEN</key>
+        <string></string>
+        <key>WECHAT_DB</key>
+        <string>/Users/yoligehude/.yoli/memory.db</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

@@ -1,29 +1,21 @@
 # Python
 __pycache__/
-*.pyc
-*.pyo
-.venv/
-venv/
+*.py[cod]
 *.egg-info/
+.venv/
 dist/
-build/
-.pytest_cache/
 
-# Node
-node_modules/
-dist/
-.env.local
-
-# 环境变量（不提交真实 key）
+# Secrets
 .env
-.env.local
-!.env.example
+*.env
+
+# Output (generated weekly, not versioned)
+output/
+data/*.db
 
 # macOS
 .DS_Store
-.AppleDouble
 
 # IDE
-.vscode/
-.idea/
+.cursor/
 *.swp

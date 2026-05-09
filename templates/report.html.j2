@@ -1,0 +1,620 @@
+{% macro _gen_card(r) %}
+<div class="gen-card">
+  <div class="gen-card-hd">
+    <div class="gen-repo-name"><a href="https://github.com/{{ r.repo }}" target="_blank">{{ r.repo }}</a></div>
+    {% if r.language %}<span class="gen-lang">{{ r.language }}</span>{% endif %}
+  </div>
+  <div class="gen-desc">{{ r.description or '—' }}</div>
+
+  <!-- 数字概览 -->
+  <div class="gen-stats">
+    <div class="gen-stat"><div class="gen-stat-v">{{ "{:,}".format(r.stars or 0) }}</div><div class="gen-stat-k">Stars</div></div>
+    {% if r.delta_stars %}<div class="gen-stat"><div class="gen-stat-v gen-delta">+{{ "{:,}".format(r.delta_stars) }}</div><div class="gen-stat-k">本周+Stars</div></div>{% endif %}
+    <div class="gen-stat"><div class="gen-stat-v gen-issue">{{ r.new_issues or 0 }}</div><div class="gen-stat-k">新 Issues</div></div>
+    <div class="gen-stat"><div class="gen-stat-v gen-pr">{{ r.new_prs or 0 }}</div><div class="gen-stat-k">新 PRs</div></div>
+    <div class="gen-stat"><div class="gen-stat-v gen-commit">{{ r.new_commits or 0 }}</div><div class="gen-stat-k">新 Commits</div></div>
+  </div>
+
+  <!-- LLM 分析（若有） -->
+  {% if r.analysis_verdict %}
+  <div class="gen-analysis">
+    <div class="gen-analysis-verdict">{{ r.analysis_verdict }}</div>
+    <div class="gen-analysis-rows">
+      {% if r.analysis_progress %}
+      <div class="gen-analysis-row">
+        <span class="gen-analysis-icon gen-commit">▲</span>
+        <span class="gen-analysis-label">本周进展</span>
+        <span class="gen-analysis-text">{{ r.analysis_progress }}</span>
+      </div>
+      {% endif %}
+      {% if r.analysis_pain %}
+      <div class="gen-analysis-row">
+        <span class="gen-analysis-icon gen-issue">●</span>
+        <span class="gen-analysis-label">用户痛点</span>
+        <span class="gen-analysis-text">{{ r.analysis_pain }}</span>
+      </div>
+      {% endif %}
+      {% if r.analysis_focus %}
+      <div class="gen-analysis-row">
+        <span class="gen-analysis-icon gen-pr">◆</span>
+        <span class="gen-analysis-label">开发重心</span>
+        <span class="gen-analysis-text">{{ r.analysis_focus }}</span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- 原始标题（折叠） -->
+  {% if r.issue_titles or r.pr_titles or r.commit_msgs %}
+  <details class="gen-raw">
+    <summary>查看原始数据（issues / PRs / commits 标题）</summary>
+    {% if r.issue_titles %}
+    <div class="gen-raw-section"><b>Issues</b>
+      {% for t in r.issue_titles %}<div class="gen-raw-item gen-issue-dot">{{ t }}</div>{% endfor %}
+    </div>
+    {% endif %}
+    {% if r.pr_titles %}
+    <div class="gen-raw-section"><b>Pull Requests</b>
+      {% for t in r.pr_titles %}<div class="gen-raw-item gen-pr-dot">{{ t }}</div>{% endfor %}
+    </div>
+    {% endif %}
+    {% if r.commit_msgs %}
+    <div class="gen-raw-section"><b>Commits</b>
+      {% for t in r.commit_msgs %}<div class="gen-raw-item gen-commit-dot">{{ t }}</div>{% endfor %}
+    </div>
+    {% endif %}
+  </details>
+  {% endif %}
+
+  <div class="gen-date">创建于 {{ r.created_at or '—' }}</div>
+</div>
+{% endmacro %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Radar · {{ week }}</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d0d14;--s1:#13131f;--s2:#1a1a2a;--s3:#222236;
+  --border:#2e2e48;--border2:#3a3a58;
+  --txt:#ddddf0;--txt2:#9494b8;--txt3:#5a5a7a;
+  --acc:#c8f055;--acc2:#55f0c8;--acc3:#f05580;--acc4:#a055f0;--acc5:#f0a055;
+  --green:#55f0a0;--red:#f05555;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--txt);font-family:'Noto Sans SC',sans-serif;font-size:14px;line-height:1.7}
+
+/* nav */
+.topnav{position:sticky;top:0;z-index:200;background:rgba(13,13,20,.95);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 40px;display:flex;gap:0;overflow-x:auto}
+.topnav a{padding:14px 16px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--txt3);text-decoration:none;white-space:nowrap;border-bottom:2px solid transparent;transition:.2s}
+.topnav a:hover,.topnav a.active{color:var(--acc);border-bottom-color:var(--acc)}
+
+/* hero */
+.hero{padding:60px 60px 40px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 70% 50% at 60% 0%,rgba(200,240,85,.06),transparent 60%);pointer-events:none}
+.hero-tag{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--acc);letter-spacing:.15em;text-transform:uppercase;margin-bottom:16px}
+.hero h1{font-size:clamp(28px,4vw,48px);font-weight:900;line-height:1.1;margin-bottom:12px}
+.hero h1 span{color:var(--acc)}
+.hero-sub{color:var(--txt2);font-size:13px;max-width:620px;margin-bottom:36px}
+.kpi-row{display:flex;gap:36px;flex-wrap:wrap}
+.kpi{display:flex;flex-direction:column;gap:3px}
+.kpi-val{font-family:'JetBrains Mono',monospace;font-size:26px;font-weight:700;color:var(--acc);line-height:1}
+.kpi-lbl{font-size:11px;color:var(--txt3);text-transform:uppercase;letter-spacing:.08em}
+
+/* diff section */
+.diff-section{margin:0 60px 0;padding:28px 32px;background:var(--s1);border:1px solid var(--border);border-radius:12px;margin-bottom:40px}
+.diff-header{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--acc2);text-transform:uppercase;letter-spacing:.12em;margin-bottom:20px;display:flex;align-items:center;gap:10px}
+.diff-header::before{content:'⬡';font-size:14px}
+.diff-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.diff-card{background:var(--s2);border-radius:8px;padding:14px 16px}
+.diff-card-title{font-size:13px;font-weight:700;margin-bottom:8px}
+.diff-item{font-size:12px;color:var(--txt2);display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.up{color:var(--green)}
+.dn{color:var(--red)}
+.nc{color:var(--txt3)}
+
+/* section wrapper */
+.section{padding:48px 60px 0}
+.sec-hd{margin-bottom:28px}
+.sec-hd h2{font-size:20px;font-weight:900;margin-bottom:6px;display:flex;align-items:center;gap:10px}
+.sec-hd h2::before{content:'';width:4px;height:20px;background:var(--acc);border-radius:2px;flex-shrink:0}
+.sec-hd p{color:var(--txt2);font-size:12px;max-width:700px}
+
+/* overview grid */
+.ov-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:48px}
+.ov-card{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:18px 20px;cursor:pointer;transition:.2s;position:relative;overflow:hidden}
+.ov-card:hover{border-color:var(--acc);transform:translateY(-2px)}
+.ov-card.active{border-color:var(--acc)}
+.ov-card::after{content:'';position:absolute;top:0;left:0;right:0;height:3px;border-radius:10px 10px 0 0;background:var(--acc);opacity:0;transition:.2s}
+.ov-card:hover::after,.ov-card.active::after{opacity:1}
+.ov-hd{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px}
+.ov-name{font-size:14px;font-weight:700;flex:1;min-width:0;line-height:1.3}
+.ov-sub{font-size:11px;color:var(--txt3);margin-bottom:14px}
+.ov-metrics{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ov-m{display:flex;flex-direction:column;gap:2px}
+.ov-mv{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700}
+.ov-mk{font-size:10px;color:var(--txt3);text-transform:uppercase}
+.delta-badge{font-size:10px;font-family:'JetBrains Mono',monospace;margin-left:4px}
+
+/* verdict pills */
+.verdict-pill{display:inline-block;font-size:10px;padding:3px 8px;border-radius:20px;font-weight:700;font-family:'JetBrains Mono',monospace;flex-shrink:0}
+.vp-exploding{background:rgba(240,160,85,.15);color:var(--acc5);border:1px solid rgba(240,160,85,.3)}
+.vp-gap{background:rgba(85,240,160,.15);color:var(--green);border:1px solid rgba(85,240,160,.3)}
+.vp-reshaping{background:rgba(240,85,128,.15);color:var(--acc3);border:1px solid rgba(240,85,128,.3)}
+.vp-forming{background:rgba(85,240,200,.15);color:var(--acc2);border:1px solid rgba(85,240,200,.3)}
+.vp-zombie{background:rgba(240,85,85,.15);color:var(--red);border:1px solid rgba(240,85,85,.3)}
+.vp-china{background:rgba(200,240,85,.15);color:var(--acc);border:1px solid rgba(200,240,85,.3)}
+.vp-infrawar{background:rgba(160,85,240,.15);color:var(--acc4);border:1px solid rgba(160,85,240,.3)}
+.vp-nascent{background:rgba(148,148,184,.15);color:var(--txt2);border:1px solid rgba(148,148,184,.3)}
+.vp-niche{background:rgba(240,160,85,.15);color:var(--acc5);border:1px solid rgba(240,160,85,.3)}
+.vp-hardware{background:rgba(85,240,200,.15);color:var(--acc2);border:1px solid rgba(85,240,200,.3)}
+
+/* detail panel */
+.detail{display:none;background:var(--s1);border:1px solid var(--border);border-radius:12px;padding:36px;margin-bottom:48px;animation:fadeIn .3s ease}
+.detail.show{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.detail-hd{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:24px}
+.detail-hd-left{flex:1;min-width:0}
+.detail-title{font-size:20px;font-weight:900}
+.detail-sub{font-size:12px;color:var(--txt2);margin-top:4px}
+.prediction{background:rgba(200,240,85,.05);border:1px solid rgba(200,240,85,.2);border-radius:8px;padding:16px 18px;margin-bottom:24px}
+.prediction-lbl{font-size:10px;color:var(--acc);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.12em;margin-bottom:6px}
+.prediction-txt{font-size:14px;font-weight:700;line-height:1.65}
+.stat-row{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:24px;padding:16px 18px;background:var(--s2);border-radius:8px}
+.stat-item{display:flex;flex-direction:column;gap:3px}
+.stat-v{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--acc)}
+.stat-v.blue{color:var(--acc2)}
+.stat-v.green{color:var(--green)}
+.stat-v.purple{color:var(--acc4)}
+.stat-k{font-size:11px;color:var(--txt3);text-transform:uppercase}
+.idx-bars{display:flex;flex-direction:column;gap:8px;margin-bottom:24px}
+.idx-row{display:flex;align-items:center;gap:12px}
+.idx-lbl{font-size:11px;color:var(--txt2);width:72px;flex-shrink:0}
+.idx-track{flex:1;height:6px;background:var(--s3);border-radius:3px;overflow:hidden}
+.idx-fill{height:100%;border-radius:3px}
+.idx-val{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--txt3);width:28px;text-align:right}
+.blk{margin-bottom:24px}
+.blk-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--txt2);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.blk-title::before{content:'';width:3px;height:14px;background:var(--acc);border-radius:1px}
+.blk-body{font-size:13px;color:var(--txt);line-height:1.8}
+
+/* ⓘ info dot */
+.info-dot{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;border:1px solid var(--txt3);font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--txt3);cursor:pointer;vertical-align:middle;margin-left:5px;transition:.15s;user-select:none;flex-shrink:0}
+.info-dot:hover{color:var(--acc);border-color:var(--acc);background:rgba(200,240,85,.08)}
+
+/* popover */
+#popover{position:fixed;z-index:9999;background:var(--s1);border:1px solid var(--border2);border-radius:10px;padding:18px 20px;width:380px;font-size:12px;line-height:1.65;box-shadow:0 12px 48px rgba(0,0,0,.6);display:none;pointer-events:none}
+#popover.vis{display:block}
+.pop-title{font-family:'JetBrains Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--txt3);margin-bottom:12px}
+.pop-row{display:grid;grid-template-columns:65px 52px 1fr;gap:8px;align-items:baseline;margin-bottom:8px;font-size:12px}
+.pop-dim{color:var(--txt2);font-size:11px}
+.pop-score{font-family:'JetBrains Mono',monospace;font-weight:700}
+.pop-note{color:var(--txt3);font-size:11px}
+.pop-sep{border:none;border-top:1px solid var(--border);margin:10px 0}
+.pop-track{font-size:10px;color:var(--txt3);margin-top:6px}
+.pop-track b{color:var(--acc4)}
+
+/* callouts */
+.callout{border-radius:8px;padding:14px 16px;margin-bottom:14px;font-size:13px;line-height:1.75}
+.callout-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.callout-community{background:rgba(42,42,66,.8);border:1px solid var(--border2)}
+.callout-community .callout-title{color:var(--acc2)}
+.callout-opp{background:rgba(85,240,160,.05);border:1px solid rgba(85,240,160,.2)}
+.callout-opp .callout-title{color:var(--green)}
+
+/* star cards */
+.stars-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.star-card{background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:14px 16px}
+.star-name{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--acc2);margin-bottom:4px;display:flex;justify-content:space-between}
+.star-stars{font-size:11px;color:var(--acc5)}
+.star-analysis{font-size:12px;color:var(--txt2);line-height:1.65;margin-top:6px}
+
+/* top repo list (inside detail panel) */
+.top-repo-list{display:flex;flex-direction:column;gap:6px;margin-bottom:4px}
+.top-repo-row{display:flex;align-items:baseline;gap:10px;padding:8px 10px;background:var(--s2);border-radius:6px}
+.top-repo-rank{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--txt3);width:16px;flex-shrink:0}
+.top-repo-name{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--acc2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top-repo-stars{font-size:11px;color:var(--acc5);white-space:nowrap}
+.top-repo-date{font-size:10px;color:var(--txt3);white-space:nowrap}
+.top-repo-desc{font-size:11px;color:var(--txt3);margin-top:2px;padding:0 26px;line-height:1.5}
+
+/* general section */
+.general-tabs{display:flex;gap:0;margin-bottom:24px;border-bottom:1px solid var(--border)}
+.general-tab{padding:10px 20px;font-size:12px;font-weight:700;cursor:pointer;color:var(--txt3);border-bottom:2px solid transparent;transition:.2s;user-select:none}
+.general-tab.active{color:var(--acc);border-bottom-color:var(--acc)}
+.general-pane{display:none}.general-pane.active{display:block}
+.general-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(460px,1fr));gap:12px;margin-bottom:48px}
+.gen-card{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:16px 18px;transition:.2s}
+.gen-card:hover{border-color:var(--border2)}
+.gen-card-hd{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px}
+.gen-repo-name{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--acc2);font-weight:700}
+.gen-repo-name a{color:inherit;text-decoration:none}
+.gen-repo-name a:hover{text-decoration:underline}
+.gen-lang{font-size:10px;color:var(--txt3);background:var(--s3);padding:2px 7px;border-radius:10px}
+.gen-desc{font-size:12px;color:var(--txt2);margin-bottom:10px;line-height:1.6}
+.gen-stats{display:flex;gap:16px;flex-wrap:wrap}
+.gen-stat{display:flex;flex-direction:column;gap:2px;min-width:52px}
+.gen-stat-v{font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700}
+.gen-stat-k{font-size:10px;color:var(--txt3);text-transform:uppercase}
+.gen-delta{color:var(--green)}
+.gen-issue{color:var(--acc3)}
+.gen-pr{color:var(--acc5)}
+.gen-commit{color:var(--acc2)}
+.gen-date{font-size:10px;color:var(--txt3);margin-top:8px}
+/* LLM 分析块 */
+.gen-analysis{margin-top:12px;border-top:1px solid var(--border);padding-top:12px}
+.gen-analysis-verdict{font-size:12px;font-weight:700;color:var(--acc);margin-bottom:8px;line-height:1.5}
+.gen-analysis-rows{display:flex;flex-direction:column;gap:6px}
+.gen-analysis-row{display:grid;grid-template-columns:16px 60px 1fr;gap:6px;align-items:baseline;font-size:12px}
+.gen-analysis-icon{font-size:8px;text-align:center}
+.gen-analysis-label{color:var(--txt3);font-size:10px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+.gen-analysis-text{color:var(--txt2);line-height:1.6}
+/* 原始数据折叠 */
+.gen-raw{margin-top:10px;font-size:11px}
+.gen-raw summary{color:var(--txt3);cursor:pointer;padding:4px 0;user-select:none}
+.gen-raw summary:hover{color:var(--txt2)}
+.gen-raw-section{margin-top:8px;padding-left:8px;border-left:2px solid var(--border)}
+.gen-raw-section b{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--txt3);display:block;margin-bottom:4px}
+.gen-raw-item{padding:2px 0;color:var(--txt3);line-height:1.5;display:flex;align-items:baseline;gap:6px}
+.gen-raw-item::before{content:'·';flex-shrink:0}
+.gen-issue-dot::before{color:var(--acc3)}
+.gen-pr-dot::before{color:var(--acc5)}
+.gen-commit-dot::before{color:var(--acc2)}
+
+/* pypi inline (inside detail panel) */
+.pypi-inline{display:flex;flex-direction:column;gap:8px}
+.pypi-inline-row{display:grid;grid-template-columns:120px 1fr 52px 1fr;gap:10px;align-items:center}
+.pypi-inline-pkg{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--txt)}
+.pypi-inline-bar-wrap .pypi-bar-track{height:4px;background:var(--s3);border-radius:2px;overflow:hidden}
+.pypi-inline-bar-wrap .pypi-bar-fill{height:100%;border-radius:2px;background:var(--acc)}
+.pypi-inline-num{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--acc5);text-align:right}
+.pypi-inline-lbl{font-size:11px;color:var(--txt3)}
+
+.divider{border:none;border-top:1px solid var(--border);margin:32px 0}
+.footnote{padding:32px 60px;font-size:11px;color:var(--txt3);border-top:1px solid var(--border)}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+</style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="#general" onclick="setActive(this)">全局 Top</a>
+  <a href="#overview" onclick="setActive(this)">12 领域</a>
+  {% if has_diff %}<a href="#weekly-diff" onclick="setActive(this)">📊 本周更新</a>{% endif %}
+  <a href="#footer" onclick="setActive(this)">关于</a>
+</nav>
+
+<div class="hero">
+  <div class="hero-tag">// Agent Radar · Open Source Demand Intelligence</div>
+  <h1>AI Agent 开源需求<br><span>全景追踪</span></h1>
+  <p class="hero-sub">12 个应用领域 · 自动每周更新 · 供需指数 + 评分依据透明可查</p>
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-val">{{ week }}</div><div class="kpi-lbl">本期数据周</div></div>
+    <div class="kpi"><div class="kpi-val">12</div><div class="kpi-lbl">应用领域</div></div>
+    {% if has_diff %}
+    <div class="kpi"><div class="kpi-val">{{ diff.prev_week }}</div><div class="kpi-lbl">上期对比</div></div>
+    {% endif %}
+    <div class="kpi"><div class="kpi-val">{{ generated_at }}</div><div class="kpi-lbl">生成时间</div></div>
+  </div>
+</div>
+
+{% if has_diff %}
+<!-- ── 本周更新 ── -->
+<div style="padding:0 60px" id="weekly-diff">
+  <div class="diff-section">
+    <div class="diff-header">本周更新 — {{ diff.prev_week }} → {{ week }}</div>
+    <div class="diff-grid">
+
+      {% if diff.top_star_gains %}
+      <div class="diff-card">
+        <div class="diff-card-title">⭐ 本周星数涨幅 Top 5</div>
+        {% for item in diff.top_star_gains %}
+        <div class="diff-item">
+          <span class="up">+{{ "{:,}".format(item.delta) }}</span>
+          <span>{{ item.repo }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% set changed = diff.domains | selectattr('demand_delta', 'ne', 0) | list %}
+      {% if changed %}
+      <div class="diff-card">
+        <div class="diff-card-title">📈 需求分变化</div>
+        {% for d in changed | sort(attribute='demand_delta', reverse=True) %}
+        <div class="diff-item">
+          <span class="{{ 'up' if d.demand_delta > 0 else 'dn' }}">{{ '%+d' % d.demand_delta }}</span>
+          <span>{{ d.domain_id }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {% if diff.pypi_changes %}
+      <div class="diff-card">
+        <div class="diff-card-title">📦 PyPI 周环比变化</div>
+        {% for p in diff.pypi_changes[:6] %}
+        <div class="diff-item">
+          <span class="{{ 'up' if p.delta_pct > 0 else 'dn' }}">{{ '%+.1f' % p.delta_pct }}%</span>
+          <span>{{ p.package }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── General Top（全景，优先展示）── -->
+<div class="section" id="general">
+  <div class="sec-hd">
+    <h2>全局 Top 项目</h2>
+    <p>跨领域热门项目追踪。近一年：按 Stars 排名的新兴项目。近一周：Star 增量最大的追踪项目，含 issues/PR/commit 活动详情与 AI 分析。</p>
+  </div>
+
+  <div class="general-tabs">
+    <div class="general-tab active" onclick="switchTab('recent_year',this)">近一年 Top 10</div>
+    <div class="general-tab" onclick="switchTab('this_week',this)">近一周 Top 10</div>
+  </div>
+
+  <!-- 近一年 -->
+  <div class="general-pane active" id="pane-recent_year">
+    <div class="general-grid">
+      {% for r in general.get('recent_year', []) %}
+      {{ _gen_card(r) }}
+      {% else %}
+      <div style="color:var(--txt3);padding:16px">数据将在首次完整运行后显示</div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- 近一周 -->
+  <div class="general-pane" id="pane-this_week">
+    <div class="general-grid">
+      {% for r in general.get('this_week', []) %}
+      {{ _gen_card(r) }}
+      {% else %}
+      <div style="color:var(--txt3);padding:16px">数据将在首次完整运行后显示</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- ── Overview grid（12 领域）── -->
+<div class="section" id="overview">
+  <div class="sec-hd">
+    <h2>12 个应用领域</h2>
+    <p>点击卡片展开深度分析。供给 = log₁₀ 归一化。需求 = D1社区+D2采用+D3商业+D4市场（点击数字旁 ⓘ 查看依据）。</p>
+  </div>
+  <div class="ov-grid" id="ov-grid">
+    {% for d in domains %}
+    {% set demand_delta = d.demand_delta %}
+    <div class="ov-card" onclick="openDetail('{{ d.id }}',this)" id="card-{{ d.id }}">
+      <div class="ov-hd">
+        <div class="ov-name">{{ d.meta.get('name', d.id) }}</div>
+        <span class="verdict-pill vp-{{ d.meta.get('verdict','nascent') }}">{{ d.meta.get('verdictLabel','') }}</span>
+      </div>
+      <div class="ov-sub">{{ d.meta.get('sub','') }}</div>
+      <div class="ov-metrics">
+        <div class="ov-m"><div class="ov-mv">{{ "{:,}".format(d.meta.get('count',0)) }}</div><div class="ov-mk">GitHub项目</div></div>
+        <div class="ov-m"><div class="ov-mv" style="font-size:13px">{{ d.meta.get('topStars','—') }}</div><div class="ov-mk">头部项目⭐</div></div>
+        <div class="ov-m"><div class="ov-mv" style="color:var(--acc4)">{{ d.demand }}{% if demand_delta != 0 %}<span class="delta-badge {{ 'up' if demand_delta > 0 else 'dn' }}">{{ '%+d' % demand_delta }}</span>{% endif %}</div><div class="ov-mk">需求</div></div>
+        <div class="ov-m"><div class="ov-mv">{{ d.supply }}</div><div class="ov-mk">供给</div></div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ── Detail panel ── -->
+<div class="section">
+  <div id="detail-panel" class="detail"></div>
+</div>
+
+<div class="footnote" id="footer">
+  数据来源：GitHub API + pypistats.org + 本地微信群聊 SQLite。生成时间：{{ generated_at }}（{{ week }}）。<br>
+  agent-radar — 每周一自动运行，供需指数四维公式见 <code>docs/ARCHITECTURE.md</code>。
+</div>
+
+<div id="popover"></div>
+
+<script>
+// ── 内嵌领域数据（从 Python 渲染注入）────────────────────────────────
+const DOMAINS_DATA = {{ domains | tojson }};
+
+// ── Popover ──────────────────────────────────────────────────────────
+const _pop = () => document.getElementById('popover');
+function showPop(e, html){
+  const p = _pop();
+  p.innerHTML = html;
+  p.classList.add('vis');
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let x = e.clientX + 14, y = e.clientY - 10;
+  if(x + 390 > vw) x = e.clientX - 394;
+  if(y + 320 > vh) y = vh - 330;
+  if(y < 10) y = 10;
+  p.style.left = x+'px'; p.style.top = y+'px';
+  e.stopPropagation();
+}
+document.addEventListener('click', ()=> _pop().classList.remove('vis'));
+
+function demandPopHTML(d){
+  const trackLabel = d.d1_track==='A'
+    ? '<b>Track A</b> — 群聊数据驱动（样本≥50条）'
+    : '<b>Track B</b> — 群聊样本不足，D1使用替代指标';
+  const rows = [
+    {dim:'D1 社区热度', score:d.d1, max:25},
+    {dim:'D2 技术采用', score:d.d2, max:25},
+    {dim:'D3 商业转化', score:d.d3, max:25},
+    {dim:'D4 市场信号', score:d.d4, max:25},
+  ];
+  const rowsHTML = rows.map(r=>{
+    const col = r.score>=20?'var(--acc)':r.score>=12?'var(--acc5)':'var(--txt3)';
+    return `<div class="pop-row"><span class="pop-dim">${r.dim}</span><span class="pop-score" style="color:${col}">${r.score}/${r.max}</span><span class="pop-note"></span></div>`;
+  }).join('');
+  return `<div class="pop-title">需求强度 ${d.demand} — 推导明细</div>
+    ${rowsHTML}
+    <hr class="pop-sep">
+    <div class="pop-track">${trackLabel}</div>
+    <div class="pop-track" style="margin-top:6px">公式：D1+D2+D3+D4，各维度最高25分</div>`;
+}
+
+function supplyPopHTML(d){
+  const logVal = Math.log10(d.meta.count||1).toFixed(3);
+  return `<div class="pop-title">供给密度 ${d.supply} — 推导明细</div>
+    <div class="pop-row"><span class="pop-dim">公式</span><span class="pop-score" style="color:var(--acc2)">${d.supply}/100</span><span class="pop-note">log₁₀(${(d.meta.count||0).toLocaleString()}) / log₁₀(3541) × 100</span></div>
+    <hr class="pop-sep">
+    <div class="pop-track">参考基准：编程开发(3541)=100；个人Agent(4)≈0</div>`;
+}
+
+// ── Overview cards ────────────────────────────────────────────────────
+let activeCard = null;
+function openDetail(id, card){
+  if(activeCard) activeCard.classList.remove('active');
+  card.classList.add('active');
+  activeCard = card;
+  const d = DOMAINS_DATA.find(x=>x.id===id);
+  if(!d) return;
+  const vpclass = 'vp-'+(d.meta.verdict||'nascent');
+  const panel = document.getElementById('detail-panel');
+  const deltaHTML = d.demand_delta !== 0
+    ? `<span class="${d.demand_delta>0?'up':'dn'}" style="font-size:14px;margin-left:6px">${d.demand_delta>0?'+':''}${d.demand_delta}</span>`
+    : '';
+
+  panel.innerHTML = `
+    <div class="detail-hd">
+      <div class="detail-hd-left">
+        <div class="detail-title">${d.meta.name||d.id}</div>
+        <div class="detail-sub">${d.meta.sub||''}</div>
+      </div>
+      <span class="verdict-pill ${vpclass}">${d.meta.verdictLabel||''}</span>
+    </div>
+    <div class="prediction">
+      <div class="prediction-lbl">// 核心判断</div>
+      <div class="prediction-txt">${d.meta.prediction||'—'}</div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-item"><div class="stat-v">${(d.meta.count||0).toLocaleString()}</div><div class="stat-k">GitHub 项目数</div></div>
+      <div class="stat-item"><div class="stat-v blue" style="font-size:16px">${d.meta.topStars||'—'}</div><div class="stat-k">头部项目 ⭐ ${d.meta.topProject||''}</div></div>
+      <div class="stat-item"><div class="stat-v green">${d.meta.new26||0}</div><div class="stat-k">2026 新增</div></div>
+      <div class="stat-item">
+        <div class="stat-v">${d.supply}<span class="info-dot" onclick="showPop(event,supplyPopHTML(DOMAINS_DATA.find(x=>x.id==='${d.id}')))">ⓘ</span></div>
+        <div class="stat-k">供给密度</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-v purple">${d.demand}${deltaHTML}<span class="info-dot" onclick="showPop(event,demandPopHTML(DOMAINS_DATA.find(x=>x.id==='${d.id}')))">ⓘ</span></div>
+        <div class="stat-k">需求强度${d.d1_track==='B'?' <span style="color:var(--acc5);font-size:10px">⚡B</span>':''}</div>
+      </div>
+    </div>
+    <div class="idx-bars">
+      <div class="idx-row"><span class="idx-lbl">开源供给</span><div class="idx-track"><div class="idx-fill" style="width:${d.supply}%;background:#55b4f0"></div></div><span class="idx-val">${d.supply}</span></div>
+      <div class="idx-row"><span class="idx-lbl">市场需求</span><div class="idx-track"><div class="idx-fill" style="width:${d.demand}%;background:#55f0a0"></div></div><span class="idx-val">${d.demand}</span></div>
+    </div>
+    <div class="blk">
+      <div class="blk-title">现状与趋势</div>
+      <div class="blk-body">${d.meta.situation||'—'}</div>
+    </div>
+    <div class="blk">
+      <div class="blk-title">开发者在做什么</div>
+      <div class="blk-body">${d.meta.devBehavior||'—'}</div>
+    </div>
+    <div class="callout callout-community">
+      <div class="callout-title">来自群聊的第一手声音</div>
+      ${d.meta.community||'—'}
+    </div>
+    <div class="callout callout-opp">
+      <div class="callout-title">机会判断</div>
+      ${d.meta.opportunity||'—'}
+    </div>
+    ${d.star_deltas && d.star_deltas.length ? `
+    <div class="blk">
+      <div class="blk-title">本周追踪项目变化</div>
+      <div class="stars-grid">${d.star_deltas.map(s=>`
+        <div class="star-card">
+          <div class="star-name"><span>${s.repo}</span><span class="star-stars">★ ${(s.stars||0).toLocaleString()}</span></div>
+          <div class="star-analysis"><span class="${s.delta>0?'up':'dn'}">${s.delta>0?'+':''}${(s.delta||0).toLocaleString()} 本周</span></div>
+        </div>`).join('')}
+      </div>
+    </div>` : ''}
+    ${d.top_historical && d.top_historical.length ? `
+    <div class="blk">
+      <div class="blk-title">历史 Top 5 项目</div>
+      <div class="top-repo-list">
+        ${d.top_historical.map(r=>`
+        <div>
+          <div class="top-repo-row">
+            <span class="top-repo-rank">${r.rank}</span>
+            <a href="https://github.com/${r.repo}" target="_blank" class="top-repo-name">${r.repo}</a>
+            <span class="top-repo-stars">★ ${(r.stars||0).toLocaleString()}</span>
+          </div>
+          ${r.description?`<div class="top-repo-desc">${r.description}</div>`:''}
+        </div>`).join('')}
+      </div>
+    </div>` : ''}
+    ${d.top_recent_year && d.top_recent_year.length ? `
+    <div class="blk">
+      <div class="blk-title">近一年新项目 Top 5</div>
+      <div class="top-repo-list">
+        ${d.top_recent_year.map(r=>`
+        <div>
+          <div class="top-repo-row">
+            <span class="top-repo-rank">${r.rank}</span>
+            <a href="https://github.com/${r.repo}" target="_blank" class="top-repo-name">${r.repo}</a>
+            <span class="top-repo-stars">★ ${(r.stars||0).toLocaleString()}</span>
+            <span class="top-repo-date">${r.created_at||''}</span>
+          </div>
+          ${r.description?`<div class="top-repo-desc">${r.description}</div>`:''}
+        </div>`).join('')}
+      </div>
+    </div>` : ''}
+    ${d.pypi && d.pypi.length ? `
+    <div class="blk">
+      <div class="blk-title">代表性库 PyPI 周下载</div>
+      <div class="pypi-inline">
+        ${d.pypi.map(p=>`
+        <div class="pypi-inline-row">
+          <span class="pypi-inline-pkg">${p.pkg}</span>
+          <div class="pypi-inline-bar-wrap"><div class="pypi-bar-track"><div class="pypi-bar-fill" style="width:${p.pct}%"></div></div></div>
+          <span class="pypi-inline-num">${p.fmt}</span>
+          <span class="pypi-inline-lbl">${p.label}</span>
+        </div>`).join('')}
+      </div>
+    </div>` : ''}
+  `;
+  panel.classList.add('show');
+  panel.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function setActive(el){
+  document.querySelectorAll('.topnav a').forEach(a=>a.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function switchTab(cat, el){
+  document.querySelectorAll('.general-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.general-pane').forEach(p=>p.classList.remove('active'));
+  el.classList.add('active');
+  const pane = document.getElementById('pane-'+cat);
+  if(pane) pane.classList.add('active');
+}
+
+// PyPI 表格已由服务端 Jinja2 渲染，无需 JS 填充
+
+// 自动打开第一个领域
+if(DOMAINS_DATA.length){
+  const first = DOMAINS_DATA[0];
+  const card = document.getElementById('card-'+first.id);
+  if(card) openDetail(first.id, card);
+}
+</script>
+</body>
+</html>
