@@ -1,0 +1,94 @@
+name: Weekly Report
+
+on:
+  # 每周一 UTC 01:00（北京 09:00）自动触发
+  schedule:
+    - cron: '0 1 * * 1'
+  # 手动触发（用于测试 / 补发）
+  workflow_dispatch:
+    inputs:
+      skip_crawl:
+        description: 'Skip live crawl (use cached data)'
+        type: boolean
+        default: false
+
+env:
+  PROJECT_ID: glass-sequence-494808-s7
+  REGION: asia-east1
+  IMAGE: asia-east1-docker.pkg.dev/glass-sequence-494808-s7/agent-radar/report
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # 把生成的 report 提交回仓库
+      id-token: write   # Workload Identity Federation
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────
+      - uses: actions/checkout@v4
+
+      # ── 2. Python ────────────────────────────────────────────────
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # ── 3. 爬取 + 评分 + 渲染 ────────────────────────────────────
+      - name: Generate weekly report
+        env:
+          GITHUB_TOKEN: ${{ secrets.RADAR_GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+        run: |
+          if [ "${{ inputs.skip_crawl }}" = "true" ]; then
+            python3 src/main.py --skip-crawl
+          else
+            python3 src/main.py
+          fi
+
+      # ── 4. 把报告提交回仓库（可选，保存历史）────────────────────
+      - name: Commit report artifact
+        run: |
+          git config user.name  "agent-radar[bot]"
+          git config user.email "agent-radar@yoliyoli.uk"
+          cp output/report_latest.html docs/report_latest.html
+          git add docs/report_latest.html data/agent_radar.db
+          git diff --cached --quiet || git commit -m "chore(report): auto-update $(date -u +%Y-W%V)"
+          git push
+
+      # ── 5. GCP Auth ──────────────────────────────────────────────
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # ── 6. Build + Push Docker image ────────────────────────────
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build & push image
+        run: |
+          WEEK=$(python3 -c "import datetime; print(datetime.date.today().strftime('%Y-W%V'))")
+          docker build --platform linux/amd64 \
+            -t ${{ env.IMAGE }}:latest \
+            -t ${{ env.IMAGE }}:$WEEK \
+            .
+          docker push ${{ env.IMAGE }}:latest
+          docker push ${{ env.IMAGE }}:$WEEK
+
+      # ── 7. Deploy to Cloud Run ───────────────────────────────────
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy agent-radar \
+            --image ${{ env.IMAGE }}:latest \
+            --platform managed \
+            --region ${{ env.REGION }} \
+            --project ${{ env.PROJECT_ID }} \
+            --allow-unauthenticated \
+            --quiet
