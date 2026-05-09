@@ -29,18 +29,17 @@ def render_full_projects(verbose: bool = True) -> Path:
     discord_cnt = conn.execute("SELECT COUNT(*) FROM full_project_registry WHERE has_discord=1").fetchone()[0]
     any_comm    = conn.execute("SELECT COUNT(*) FROM full_project_registry WHERE community_count>0").fetchone()[0]
 
-    # 拉全量数据（精简字段）
+    # 拉全量数据
     rows = conn.execute("""
         SELECT ar_id, repo, name, stars, forks, language,
                description, domain_tags,
                has_wechat, has_discord, has_qq, has_telegram, has_slack,
-               community_count, gh_created, summary_cn
+               community_count, gh_created, summary_cn, community_items
         FROM full_project_registry
         ORDER BY stars DESC
     """).fetchall()
     conn.close()
 
-    # 构造紧凑数组：每条 ~200 bytes
     # comm_flags: bit0=wechat, bit1=discord, bit2=qq, bit3=telegram, bit4=slack
     records: list[list] = []
     for r in rows:
@@ -51,18 +50,29 @@ def render_full_projects(verbose: bool = True) -> Path:
             (8 if r["has_telegram"] else 0) |
             (16 if r["has_slack"]   else 0)
         )
-        desc = (r["description"] or "")[:200]
-        yr   = (r["gh_created"] or "")[:4]
+        desc    = (r["description"] or "")[:200]
+        summary = (r["summary_cn"] or "")[:300]
+        yr      = (r["gh_created"] or "")[:4]
         domains = json.loads(r["domain_tags"] or "[]")
+        # 社区详情（文字部分，无 base64 图片）
+        comm_items = json.loads(r["community_items"] or "[]")
+        # 只保留有 value 或 note 的有效条目
+        comm_items_clean = [
+            {k: v for k, v in item.items() if k in ("platform","delivery","note","value","member_count","verified")}
+            for item in comm_items
+            if isinstance(item, dict) and (item.get("note") or item.get("value"))
+        ]
         records.append([
-            r["ar_id"],          # 0  "AR-00001"
-            r["repo"],           # 1  "owner/name"
-            r["stars"],          # 2  12345
-            r["language"] or "", # 3  "Python"
-            desc,                # 4  description
-            domains,             # 5  ["coding","infra"]
-            comm_flags,          # 6  bitmask
-            yr,                  # 7  "2023"
+            r["ar_id"],            # 0  "AR-00001"
+            r["repo"],             # 1  "owner/name"
+            r["stars"],            # 2  12345
+            r["language"] or "",   # 3  "Python"
+            desc,                  # 4  description (en)
+            domains,               # 5  ["coding","infra"]
+            comm_flags,            # 6  bitmask
+            yr,                    # 7  "2023"
+            summary,               # 8  summary_cn
+            comm_items_clean,      # 9  [{platform,delivery,note,value,...}]
         ])
 
     # 写 JSON 数据文件
@@ -116,7 +126,7 @@ def _build_html(total: int, wechat_cnt: int, discord_cnt: int, any_comm: int) ->
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }}
 * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-body {{ background: var(--bg); color: var(--text); font-family: var(--font); min-height: 100vh; }}
+body {{ background: var(--bg); color: var(--text); font-family: var(--font); }}
 
 /* ── 顶部导航 ── */
 .nav {{ background: var(--surface); border-bottom: 1px solid var(--border);
@@ -152,12 +162,11 @@ body {{ background: var(--bg); color: var(--text); font-family: var(--font); min
   padding: 6px 10px; color: var(--text); font-size: 0.82rem; cursor: pointer; }}
 .result-count {{ font-size: 0.82rem; color: var(--muted); margin-left: auto; }}
 
-/* ── 虚拟列表容器 ── */
+/* ── 列表容器 ── */
 .list-wrap {{
-  padding: 0 24px 24px;
+  padding: 0 24px 40px;
 }}
 
-/* 表头 */
 .list-header {{
   display: grid;
   grid-template-columns: 90px 1fr 90px 80px 180px 120px;
@@ -168,25 +177,58 @@ body {{ background: var(--bg); color: var(--text); font-family: var(--font); min
   border-bottom: 1px solid var(--border);
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  margin-top: 12px;
+  margin-top: 10px;
   position: sticky;
-  top: 57px;
+  top: 0;
   background: var(--bg);
-  z-index: 99;
+  z-index: 90;
 }}
 
-.vscroll-outer {{
-  height: calc(100vh - 220px);
-  overflow-y: auto;
-  position: relative;
+#rowList {{ }}
+
+/* 展开详情 */
+.row {{ cursor: pointer; }}
+.row-detail {{
+  display: none;
+  grid-column: 1 / -1;
+  background: rgba(88,166,255,.04);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 0 6px 6px;
+  padding: 14px 16px;
+  margin: -1px 0 4px;
 }}
-.vscroll-total {{
-  /* 高度由 JS 动态设置，用来占位 */
+.row-detail.open {{ display: block; }}
+.detail-summary {{
+  color: var(--text); font-size: 0.82rem; line-height: 1.6; margin-bottom: 10px;
 }}
-.vscroll-visible {{
-  position: absolute;
-  left: 0; right: 0;
+.detail-comm-list {{ display: flex; flex-wrap: wrap; gap: 8px; }}
+.detail-comm-item {{
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 12px;
+  font-size: 0.78rem; max-width: 340px;
 }}
+.detail-comm-platform {{
+  font-weight: 700; margin-bottom: 4px;
+  display: flex; align-items: center; gap: 6px;
+}}
+.detail-comm-note {{ color: var(--muted); line-height: 1.5; }}
+.detail-comm-link {{ color: var(--accent); word-break: break-all; }}
+.detail-comm-meta {{ color: var(--muted); font-size: 0.72rem; margin-top: 4px; }}
+
+/* 分页 */
+.pagination {{
+  display: flex; align-items: center; justify-content: center;
+  gap: 8px; padding: 20px 0; flex-wrap: wrap;
+}}
+.page-btn {{
+  padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); cursor: pointer;
+  font-size: 0.82rem; transition: all .15s;
+}}
+.page-btn:hover {{ border-color: var(--accent); color: var(--accent); }}
+.page-btn.active {{ background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }}
+.page-btn:disabled {{ opacity: .4; cursor: default; }}
+.page-info {{ font-size: 0.82rem; color: var(--muted); }}
 
 /* 行 */
 .row {{
@@ -304,24 +346,19 @@ body {{ background: var(--bg); color: var(--text); font-family: var(--font); min
     <div>领域</div>
     <div>社区</div>
   </div>
-  <div id="vscrollOuter" class="vscroll-outer">
-    <div class="loading" id="loadingEl">
-      正在加载项目数据...
-      <div class="loading-bar"><div class="loading-bar-inner"></div></div>
-    </div>
-    <div id="vscrollTotal" class="vscroll-total" style="display:none"></div>
-    <div id="vscrollVisible" class="vscroll-visible" style="display:none"></div>
+  <div class="loading" id="loadingEl">
+    正在加载项目数据...
+    <div class="loading-bar"><div class="loading-bar-inner"></div></div>
   </div>
+  <div id="rowList"></div>
+  <div class="pagination" id="paginationEl" style="display:none"></div>
 </div>
 
 <script>
-// ─── 虚拟滚动实现 ───────────────────────────────────────────────────────────
-const ROW_H = 64;
-const OVERSCAN = 10;
+const PAGE_SIZE = 100;
 
-const COMM_NAMES = ['微信','Discord','QQ','Telegram','Slack'];
+const COMM_NAMES   = ['微信','Discord','QQ','Telegram','Slack'];
 const COMM_CLASSES = ['comm-wechat','comm-discord','comm-qq','comm-telegram','comm-slack'];
-
 const DOMAIN_LABELS = {{
   coding:'编程',infra:'基础设施',rag:'RAG',chatbot:'对话',creative:'创意',
   data:'数据',browser:'浏览器',finance:'金融',ai4science:'科研',
@@ -330,119 +367,167 @@ const DOMAIN_LABELS = {{
   legal:'法务',hr:'招聘',ecommerce:'电商'
 }};
 
-let allData = [];
-let filtered = [];
-let activeComm = 0;   // bitmask
+let allData   = [];
+let filtered  = [];
+let activeComm   = 0;
 let activeDomain = '';
-let searchQ = '';
-let sortMode = 'stars';
+let searchQ   = '';
+let sortMode  = 'stars';
+let curPage   = 0;   // 0-indexed
 
-// ─── 加载数据 ───────────────────────────────────────────────────────────────
+// ─── 加载 ────────────────────────────────────────────────────────────────────
 fetch('full_projects_data.json')
-  .then(r => r.json())
+  .then(r => {{
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }})
   .then(payload => {{
-    allData = payload.records;
+    allData = payload.records || [];
     document.getElementById('loadingEl').style.display = 'none';
-    document.getElementById('vscrollTotal').style.display = '';
-    document.getElementById('vscrollVisible').style.display = '';
+    document.getElementById('paginationEl').style.display = '';
     applyFilter();
-    initScroll();
   }})
   .catch(err => {{
-    document.getElementById('loadingEl').textContent = '加载失败：' + err;
+    const el = document.getElementById('loadingEl');
+    el.innerHTML = `<div style="color:var(--red)">加载失败（${{err}}）</div>
+      <div style="margin-top:8px;font-size:.8rem;color:var(--muted)">
+      尝试直接访问：<a href="full_projects_data.json" style="color:var(--accent)">full_projects_data.json</a></div>`;
   }});
 
-// ─── 筛选 ────────────────────────────────────────────────────────────────────
+// ─── 筛选 + 排序 ──────────────────────────────────────────────────────────────
 function applyFilter() {{
   const q = searchQ.toLowerCase();
   filtered = allData.filter(r => {{
-    // 社区筛选
     if (activeComm && !(r[6] & activeComm)) return false;
-    // 领域筛选
-    if (activeDomain && !r[5].includes(activeDomain)) return false;
-    // 搜索
-    if (q && !r[1].toLowerCase().includes(q) && !r[4].toLowerCase().includes(q)) return false;
+    if (activeDomain && !(r[5] || []).includes(activeDomain)) return false;
+    if (q && !r[1].toLowerCase().includes(q) && !(r[4]||'').toLowerCase().includes(q)) return false;
     return true;
   }});
-  // 排序
   if (sortMode === 'stars') filtered.sort((a,b) => b[2]-a[2]);
   else if (sortMode === 'comm') filtered.sort((a,b) => popcount(b[6])-popcount(a[6]));
   else filtered.sort((a,b) => a[0].localeCompare(b[0]));
 
+  curPage = 0;
   document.getElementById('resultCount').textContent =
     filtered.length === allData.length
       ? `共 ${{allData.length.toLocaleString()}} 条`
       : `筛选结果 ${{filtered.length.toLocaleString()}} / ${{allData.length.toLocaleString()}}`;
-  renderVisible();
+  renderPage();
 }}
 
-function popcount(n) {{
-  let c=0; while(n){{c+=n&1;n>>=1;}} return c;
+function popcount(n) {{ let c=0; while(n){{c+=n&1;n>>=1;}} return c; }}
+
+// ─── 渲染当页 ────────────────────────────────────────────────────────────────
+function renderPage() {{
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  curPage = Math.max(0, Math.min(curPage, totalPages-1));
+
+  const start = curPage * PAGE_SIZE;
+  const end   = Math.min(start + PAGE_SIZE, filtered.length);
+  const chunk = filtered.slice(start, end);
+
+  document.getElementById('rowList').innerHTML = chunk.map(buildRow).join('');
+  renderPagination(totalPages);
+  window.scrollTo(0, 0);
 }}
 
-// ─── 虚拟滚动 ───────────────────────────────────────────────────────────────
-let outerEl, totalEl, visibleEl;
-
-function initScroll() {{
-  outerEl   = document.getElementById('vscrollOuter');
-  totalEl   = document.getElementById('vscrollTotal');
-  visibleEl = document.getElementById('vscrollVisible');
-  outerEl.addEventListener('scroll', onScroll, {{passive: true}});
-  renderVisible();
-}}
-
-function onScroll() {{ renderVisible(); }}
-
-function renderVisible() {{
-  if (!outerEl) return;
-  const totalH = filtered.length * ROW_H;
-  totalEl.style.height = totalH + 'px';
-
-  const scrollTop = outerEl.scrollTop;
-  const viewH = outerEl.clientHeight;
-  const startIdx = Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN);
-  const endIdx   = Math.min(filtered.length, Math.ceil((scrollTop + viewH) / ROW_H) + OVERSCAN);
-
-  visibleEl.style.transform = `translateY(${{startIdx * ROW_H}}px)`;
-  const rows = [];
-  for (let i = startIdx; i < endIdx; i++) {{
-    rows.push(buildRow(filtered[i], i));
-  }}
-  visibleEl.innerHTML = rows.join('');
-}}
+const PLATFORM_ICONS = {{
+  wechat:'💬', discord:'🎮', qq:'🐧', telegram:'✈️', slack:'💼',
+  twitter:'🐦', github:'🐙', website:'🌐',
+}};
 
 function buildRow(r, idx) {{
-  // r: [ar_id, repo, stars, lang, desc, domains, comm_flags, yr]
-  const [ar_id, repo, stars, lang, desc, domains, comm_flags, yr] = r;
+  const [ar_id, repo, stars, lang, desc, domains, comm_flags, yr, summary, commItems] = r;
   const starsStr = stars >= 1000 ? (stars/1000).toFixed(1)+'k' : String(stars);
-
-  // 社区徽章
   let commHTML = '';
   for (let b = 0; b < 5; b++) {{
-    if (comm_flags & (1 << b)) {{
+    if (comm_flags & (1<<b))
       commHTML += `<span class="comm-badge ${{COMM_CLASSES[b]}}">${{COMM_NAMES[b]}}</span>`;
+  }}
+  const domainTags = (domains||[]).slice(0,3)
+    .map(d=>`<span class="domain-tag">${{DOMAIN_LABELS[d]||d}}</span>`).join('');
+  const ghUrl = `https://github.com/${{repo}}`;
+  const shortRepo = repo.length > 38 ? repo.slice(0,36)+'…' : repo;
+  const hasDetail = summary || (commItems && commItems.length > 0);
+  const expandHint = hasDetail ? ` <span style="color:var(--muted);font-size:.7rem">▸ 详情</span>` : '';
+
+  // 详情面板
+  let detailHTML = '';
+  if (hasDetail) {{
+    let summaryPart = summary
+      ? `<div class="detail-summary">${{escHtml(summary)}}</div>` : '';
+    let commPart = '';
+    for (const item of (commItems||[])) {{
+      const icon = PLATFORM_ICONS[item.platform] || '📌';
+      const name = item.platform.charAt(0).toUpperCase() + item.platform.slice(1);
+      let content = '';
+      if (item.value && item.delivery === 'link') {{
+        content = `<div class="detail-comm-link"><a href="${{escHtml(item.value)}}" target="_blank" rel="noopener">${{escHtml(item.value.slice(0,60))}}</a></div>`;
+      }} else if (item.note) {{
+        content = `<div class="detail-comm-note">${{escHtml(item.note)}}</div>`;
+      }}
+      const meta = [];
+      if (item.member_count) meta.push(`👥 ${{item.member_count}} 人`);
+      if (item.verified) meta.push('✅ 已验证');
+      const metaHTML = meta.length ? `<div class="detail-comm-meta">${{meta.join(' · ')}}</div>` : '';
+      commPart += `<div class="detail-comm-item">
+        <div class="detail-comm-platform">${{icon}} ${{name}}</div>
+        ${{content}}${{metaHTML}}
+      </div>`;
     }}
+    const commListHTML = commPart ? `<div class="detail-comm-list">${{commPart}}</div>` : '';
+    detailHTML = `<div class="row-detail" id="detail-${{ar_id}}">${{summaryPart}}${{commListHTML}}</div>`;
   }}
 
-  // 领域标签（最多 3 个）
-  const domainTags = (domains || []).slice(0,3).map(d =>
-    `<span class="domain-tag">${{DOMAIN_LABELS[d] || d}}</span>`
-  ).join('');
-
-  const ghUrl = `https://github.com/${{repo}}`;
-  const shortRepo = repo.length > 35 ? repo.slice(0,33)+'…' : repo;
-
-  return `<div class="row">
+  return `<div class="row" onclick="toggleDetail('${{ar_id}}',${{hasDetail?1:0}})">
     <div class="col-id">${{ar_id}}</div>
     <div class="col-repo">
-      <a class="repo-link" href="${{ghUrl}}" target="_blank" rel="noopener" title="${{repo}}">${{shortRepo}}</a>
-      <div class="repo-desc">${{escHtml(desc)}}</div>
+      <a class="repo-link" href="${{ghUrl}}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${{escHtml(shortRepo)}}</a>${{expandHint}}
+      <div class="repo-desc">${{escHtml((desc||'').slice(0,150))}}</div>
     </div>
     <div class="col-stars">⭐ ${{starsStr}}</div>
     <div class="col-lang">${{escHtml(lang)}}</div>
     <div class="col-domains">${{domainTags}}</div>
     <div class="col-comm">${{commHTML}}</div>
-  </div>`;
+  </div>${{detailHTML}}`;
+}}
+
+function toggleDetail(arId, hasDetail) {{
+  if (!hasDetail) return;
+  const el = document.getElementById('detail-' + arId);
+  if (!el) return;
+  el.classList.toggle('open');
+}}
+
+function renderPagination(totalPages) {{
+  const el = document.getElementById('paginationEl');
+  if (totalPages <= 1) {{ el.innerHTML=''; return; }}
+  const pages = buildPageNumbers(curPage, totalPages);
+  let html = `<button class="page-btn" onclick="goPage(${{curPage-1}})" ${{curPage===0?'disabled':''}}>‹ 上一页</button>`;
+  for (const p of pages) {{
+    if (p === '...') html += `<span class="page-info">…</span>`;
+    else html += `<button class="page-btn ${{p===curPage?'active':''}}" onclick="goPage(${{p}})">${{p+1}}</button>`;
+  }}
+  html += `<button class="page-btn" onclick="goPage(${{curPage+1}})" ${{curPage===totalPages-1?'disabled':''}}>下一页 ›</button>`;
+  html += `<span class="page-info">第 ${{curPage+1}} / ${{totalPages}} 页（每页 ${{PAGE_SIZE}} 条）</span>`;
+  el.innerHTML = html;
+}}
+
+function buildPageNumbers(cur, total) {{
+  const pages = [];
+  if (total <= 9) {{ for (let i=0;i<total;i++) pages.push(i); return pages; }}
+  pages.push(0);
+  if (cur > 3) pages.push('...');
+  for (let i=Math.max(1,cur-2); i<=Math.min(total-2,cur+2); i++) pages.push(i);
+  if (cur < total-4) pages.push('...');
+  pages.push(total-1);
+  return pages;
+}}
+
+function goPage(p) {{
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  curPage = Math.max(0, Math.min(p, totalPages-1));
+  renderPage();
 }}
 
 function escHtml(s) {{
@@ -451,48 +536,39 @@ function escHtml(s) {{
 
 // ─── 事件绑定 ────────────────────────────────────────────────────────────────
 document.getElementById('searchInput').addEventListener('input', e => {{
-  searchQ = e.target.value;
-  if (outerEl) outerEl.scrollTop = 0;
-  applyFilter();
+  searchQ = e.target.value; applyFilter();
 }});
-
 document.getElementById('sortSelect').addEventListener('change', e => {{
-  sortMode = e.target.value;
-  if (outerEl) outerEl.scrollTop = 0;
-  applyFilter();
+  sortMode = e.target.value; applyFilter();
 }});
 
-// 社区筛选按钮
 document.querySelectorAll('[data-comm]').forEach(btn => {{
   btn.addEventListener('click', () => {{
     const v = parseInt(btn.dataset.comm);
-    const cls = btn.classList;
     if (activeComm === v) {{
       activeComm = 0;
-      cls.remove('active');
+      document.querySelectorAll('[data-comm]').forEach(b=>b.classList.remove('active'));
     }} else {{
-      document.querySelectorAll('[data-comm]').forEach(b => b.classList.remove('active'));
-      activeComm = v;
-      cls.add('active');
+      document.querySelectorAll('[data-comm]').forEach(b=>b.classList.remove('active'));
+      activeComm = v; btn.classList.add('active');
     }}
-    if (outerEl) outerEl.scrollTop = 0;
     applyFilter();
   }});
 }});
 
-// 领域筛选按钮
 document.querySelectorAll('[data-domain]').forEach(btn => {{
   btn.addEventListener('click', () => {{
     const v = btn.dataset.domain;
-    document.querySelectorAll('[data-domain]').forEach(b => b.classList.remove('active'));
-    activeDomain = (activeDomain === v && v !== '') ? '' : v;
-    btn.classList.toggle('active', activeDomain === v || (v==='' && activeDomain===''));
-    if (v==='') {{ activeDomain=''; btn.classList.add('active'); }}
-    if (outerEl) outerEl.scrollTop = 0;
+    document.querySelectorAll('[data-domain]').forEach(b=>b.classList.remove('active'));
+    if (activeDomain === v && v !== '') {{
+      activeDomain = '';
+      document.querySelector('[data-domain=""]').classList.add('active');
+    }} else {{
+      activeDomain = v; btn.classList.add('active');
+    }}
     applyFilter();
   }});
 }});
-// 初始化"全部"按钮状态
 document.querySelector('[data-domain=""]').classList.add('active');
 </script>
 </body>

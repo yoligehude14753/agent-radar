@@ -88,7 +88,7 @@ def _classify_domains(repo_name: str, desc: str, topics: list[str]) -> list[str]
 
 
 def _parse_community_flags(items_raw) -> dict:
-    """从 items 字段解析社区平台标志。"""
+    """从 items 字段解析社区平台标志和文字信息（不含 base64 QR 图片）。"""
     items = items_raw if isinstance(items_raw, list) else []
     if not items and isinstance(items_raw, str):
         try:
@@ -103,13 +103,14 @@ def _parse_community_flags(items_raw) -> dict:
         "has_telegram": 0,
         "has_slack": 0,
     }
-    count = 0
-    seen_platforms: set[str] = set()
+    community_items: list[dict] = []
+
     for item in (items or []):
         if not isinstance(item, dict):
             continue
         platform = (item.get("platform") or "").lower()
-        seen_platforms.add(platform)
+        delivery = (item.get("delivery") or "").lower()
+
         if platform == "wechat":
             flags["has_wechat"] = 1
         elif platform == "discord":
@@ -120,8 +121,39 @@ def _parse_community_flags(items_raw) -> dict:
             flags["has_telegram"] = 1
         elif platform == "slack":
             flags["has_slack"] = 1
+
+        # 保留文字类信息（跳过 base64 QR 图片，体积过大且已过期）
+        if delivery in ("qr_image",):
+            note = (item.get("note") or "")[:100]
+            community_items.append({
+                "platform": platform,
+                "delivery": "qr_image",
+                "note": note,
+                # 不存 img_data_url（过期 + 占用大量空间）
+            })
+        elif platform in ("wechat", "discord", "qq", "telegram", "slack",
+                          "twitter", "github", "website"):
+            value = str(item.get("value") or "")[:200]
+            note  = (item.get("note") or "")[:100]
+            member_count = item.get("member_count")
+            verified = bool(item.get("verified"))
+            entry: dict = {"platform": platform, "delivery": delivery}
+            if value:
+                entry["value"] = value
+            if note:
+                entry["note"] = note
+            if member_count:
+                entry["member_count"] = member_count
+            if verified:
+                entry["verified"] = True
+            community_items.append(entry)
+
     count = sum(1 for v in flags.values() if v)
-    return {**flags, "community_count": count}
+    return {
+        **flags,
+        "community_count": count,
+        "community_items": community_items,
+    }
 
 
 # ─── 主入口 ──────────────────────────────────────────────────────────────────
@@ -161,6 +193,7 @@ def run_full_import(verbose: bool = True) -> int:
                 community_index[fn] = {
                     **flags,
                     "summary_cn": (d.get("summary_cn") or "")[:500],
+                    "community_items": flags.get("community_items", []),
                 }
     except FileNotFoundError:
         if verbose:
@@ -223,6 +256,7 @@ def run_full_import(verbose: bool = True) -> int:
                 comm.get("has_telegram", 0),
                 comm.get("has_slack", 0),
                 comm.get("community_count", 0),
+                json.dumps(comm.get("community_items", []), ensure_ascii=False),
                 summary_cn,
                 "2026-W19",
             ))
@@ -240,6 +274,7 @@ def run_full_import(verbose: bool = True) -> int:
                 comm.get("has_telegram", 0),
                 comm.get("has_slack", 0),
                 comm.get("community_count", 0),
+                json.dumps(comm.get("community_items", []), ensure_ascii=False),
                 summary_cn or None,
                 full_name,
             ]
@@ -249,6 +284,7 @@ def run_full_import(verbose: bool = True) -> int:
                     topics=?, domain_tags=?,
                     has_wechat=?, has_discord=?, has_qq=?,
                     has_telegram=?, has_slack=?, community_count=?,
+                    community_items=?,
                     summary_cn=COALESCE(NULLIF(?,''), summary_cn),
                     updated_at=datetime('now')
                 WHERE repo=?
@@ -294,11 +330,17 @@ def _ensure_table(conn: sqlite3.Connection) -> None:
             has_telegram    INTEGER DEFAULT 0,
             has_slack       INTEGER DEFAULT 0,
             community_count INTEGER DEFAULT 0,
+            community_items TEXT DEFAULT '[]',
             summary_cn      TEXT,
             first_seen      TEXT,
             updated_at      TEXT DEFAULT (datetime('now'))
         )
     """)
+    # 若旧表缺少 community_items 列，补加
+    try:
+        conn.execute("ALTER TABLE full_project_registry ADD COLUMN community_items TEXT DEFAULT '[]'")
+    except Exception:
+        pass
     conn.execute("CREATE INDEX IF NOT EXISTS idx_fpr_stars ON full_project_registry(stars DESC)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_fpr_domain ON full_project_registry(domain_tags)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_fpr_wechat ON full_project_registry(has_wechat)")
@@ -311,7 +353,7 @@ def _batch_insert(conn: sqlite3.Connection, batch: list[tuple]) -> None:
         (ar_id, repo, name, stars, forks, description, language,
          topics, homepage, gh_created, domain_tags,
          has_wechat, has_discord, has_qq, has_telegram, has_slack,
-         community_count, summary_cn, first_seen)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         community_count, community_items, summary_cn, first_seen)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     """, batch)
     conn.commit()
