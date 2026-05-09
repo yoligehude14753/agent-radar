@@ -84,6 +84,21 @@ def init_db() -> None:
         UNIQUE(week, package)
     );
 
+    CREATE TABLE IF NOT EXISTS project_registry (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        ar_id       TEXT NOT NULL UNIQUE,   -- 'AR-001'
+        repo        TEXT NOT NULL UNIQUE,   -- 'owner/name'
+        first_seen  TEXT NOT NULL,          -- week string e.g. '2026-W19'
+        domain_ids  TEXT NOT NULL DEFAULT '[]',  -- JSON array of domain_id strings
+        stars       INTEGER DEFAULT 0,
+        delta_stars INTEGER DEFAULT 0,      -- vs last week
+        description TEXT,
+        language    TEXT,
+        homepage    TEXT,
+        gh_created  TEXT,                   -- GitHub repo creation date
+        updated_at  TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS run_log (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         week        TEXT,

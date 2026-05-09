@@ -17,10 +17,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.shared.db import init_db, get_conn
 from src.contexts.crawler.application.crawl_usecase import run as crawl, iso_week
 from src.contexts.crawler.application.top_repos_usecase import run as crawl_top_repos, fetch_general_activity
+from src.contexts.crawler.application.registry_usecase import run_incremental as registry_incremental, run_full_update as registry_full_update
 from src.contexts.crawler.infrastructure.wechat_reader import count_messages_this_week
 from src.contexts.scoring.application.score_usecase import compute_scores
 from src.contexts.diff.application.diff_usecase import compute_diff
 from src.contexts.report.application.render_usecase import render
+from src.contexts.report.application.render_projects_usecase import render_projects
 from src.shared.config import LOG_DIR, REPORT_PATH
 
 
@@ -95,10 +97,23 @@ def main():
         else:
             print("  首次运行，无历史对比")
 
-        # Step 4: 渲染报告
+        # Step 3b: 项目注册表（增量编号；存量 star 更新仅在完整爬取时执行）
+        print("\n▶ Step 3b/4  更新项目注册表 ...")
+        new_count = registry_incremental(week, verbose=True)
+        print(f"  新增项目 {new_count} 个")
+        if not args.skip_crawl:
+            print("  存量 star 更新（GitHub API）...")
+            registry_full_update(verbose=True)
+        else:
+            print("  skip-crawl 模式，跳过存量 star 更新")
+
+        # Step 4: 渲染报告 + 项目库
         print("\n▶ Step 4/4  渲染 HTML ...")
         out = render(week, scores, diff)
-        print(f"\n✅ 报告已生成：{out}")
+        print(f"  周报：{out}")
+        proj_out = render_projects()
+        print(f"  项目库：{proj_out}")
+        print(f"\n✅ 全部生成完成")
 
         _log_run(week, "ok")
 
