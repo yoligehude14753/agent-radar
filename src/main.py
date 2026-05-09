@@ -23,6 +23,8 @@ from src.contexts.scoring.application.score_usecase import compute_scores
 from src.contexts.diff.application.diff_usecase import compute_diff
 from src.contexts.report.application.render_usecase import render
 from src.contexts.report.application.render_projects_usecase import render_projects
+from src.contexts.crawler.application.full_import_usecase import run_full_import as full_import
+from src.contexts.report.application.render_full_projects_usecase import render_full_projects
 from src.shared.config import LOG_DIR, REPORT_PATH
 
 
@@ -107,12 +109,19 @@ def main():
         else:
             print("  skip-crawl 模式，跳过存量 star 更新")
 
+        # Step 3c: 全量项目库（增量导入 + 更新社区标签）
+        print("\n▶ Step 3c/4  更新全量项目库 ...")
+        new_full = full_import(verbose=True)
+        print(f"  全量库新增 {new_full} 个项目")
+
         # Step 4: 渲染报告 + 项目库
         print("\n▶ Step 4/4  渲染 HTML ...")
         out = render(week, scores, diff)
         print(f"  周报：{out}")
         proj_out = render_projects()
-        print(f"  项目库：{proj_out}")
+        print(f"  精选项目库：{proj_out}")
+        full_out = render_full_projects()
+        print(f"  全量项目库：{full_out}")
         print(f"\n✅ 全部生成完成")
 
         _log_run(week, "ok")

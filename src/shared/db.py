@@ -99,6 +99,30 @@ def init_db() -> None:
         updated_at  TEXT DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS full_project_registry (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        ar_id           TEXT NOT NULL UNIQUE,   -- 'AR-00001'
+        repo            TEXT NOT NULL UNIQUE,   -- 'owner/name'
+        name            TEXT,
+        stars           INTEGER DEFAULT 0,
+        forks           INTEGER DEFAULT 0,
+        description     TEXT,
+        language        TEXT,
+        topics          TEXT DEFAULT '[]',      -- JSON array
+        homepage        TEXT,
+        gh_created      TEXT,                   -- GitHub 创建日期
+        domain_tags     TEXT DEFAULT '[]',      -- JSON array of domain_id strings
+        has_wechat      INTEGER DEFAULT 0,
+        has_discord     INTEGER DEFAULT 0,
+        has_qq          INTEGER DEFAULT 0,
+        has_telegram    INTEGER DEFAULT 0,
+        has_slack       INTEGER DEFAULT 0,
+        community_count INTEGER DEFAULT 0,
+        summary_cn      TEXT,
+        first_seen      TEXT,
+        updated_at      TEXT DEFAULT (datetime('now'))
+    );
+
     CREATE TABLE IF NOT EXISTS run_log (
         id          INTEGER PRIMARY KEY AUTOINCREMENT,
         week        TEXT,
