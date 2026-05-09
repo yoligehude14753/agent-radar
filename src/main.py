@@ -25,6 +25,8 @@ from src.contexts.report.application.render_usecase import render
 from src.contexts.report.application.render_projects_usecase import render_projects
 from src.contexts.crawler.application.full_import_usecase import run_full_import as full_import
 from src.contexts.report.application.render_full_projects_usecase import render_full_projects
+from src.contexts.report.application.render_community_report_usecase import render_community_report
+from src.contexts.report.application.render_community_report_usecase import render_community_report
 from src.shared.config import LOG_DIR, REPORT_PATH
 
 
@@ -122,6 +124,8 @@ def main():
         print(f"  精选项目库：{proj_out}")
         full_out = render_full_projects()
         print(f"  全量项目库：{full_out}")
+        comm_out = render_community_report()
+        print(f"  群聊社区报告：{comm_out}")
         print(f"\n✅ 全部生成完成")
 
         _log_run(week, "ok")

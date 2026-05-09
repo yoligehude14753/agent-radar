@@ -1,36 +1,40 @@
 """
 full_import_usecase.py
 ======================
-将 github-community-finder 爬取的全量 repos.json（~4.2万条）导入
-full_project_registry 表，并用 results.jsonl 富化社区标签。
+将 github-community-finder 的产出（repos.json + results.jsonl）导入
+full_project_registry 表。
+
+设计原则：
+  - 不重新发明轮子：用 github_radar.models.result_from_dict 反序列化
+  - 保留完整 community 数据：img_data_url（QR 码）、summary_cn、items
+  - repos.json 提供 42k 基础数据；results.jsonl 富化其中 24k
+  - 每次运行：新仓库插入，旧仓库更新 stars / community
 
 运行时机：
-  - 首次：完整导入全部仓库
-  - 每周：增量追加新仓库 + 更新现有仓库 star 数
-
-用法（在 main.py 中调用）：
-  from src.contexts.crawler.application.full_import_usecase import run_full_import
-  run_full_import(verbose=True)
+  - 首次：完整导入
+  - 每周：find_communities.py 更新 results.jsonl 后调用本函数做增量导入
 """
 from __future__ import annotations
 
 import json
-import re
+import sys
 import sqlite3
 from pathlib import Path
 
 from src.shared.db import get_conn
-from src.shared.config import BASE_DIR
 
-# ─── 数据源路径 ──────────────────────────────────────────────────────────────
-
+# ─── 数据源路径（github-community-finder 输出目录）────────────────────────────
 COMMUNITY_FINDER_DIR = Path(
     "/Users/yoligehude/Desktop/all/openall/projects/github-community-finder"
 )
 REPOS_JSON    = COMMUNITY_FINDER_DIR / "report_full.html.cache" / "repos.json"
 RESULTS_JSONL = COMMUNITY_FINDER_DIR / "report_full.html.cache" / "results.jsonl"
 
-# ─── 领域关键词（用于自动打标签） ──────────────────────────────────────────
+# 将 github-community-finder 加入 sys.path 以使用其 models
+if str(COMMUNITY_FINDER_DIR) not in sys.path:
+    sys.path.insert(0, str(COMMUNITY_FINDER_DIR))
+
+# ─── 领域关键词（自动打标签）────────────────────────────────────────────────
 
 DOMAIN_KEYWORDS: dict[str, list[str]] = {
     "coding":      ["code", "coding", "cursor", "copilot", "ide", "dev", "compiler",
@@ -63,8 +67,7 @@ DOMAIN_KEYWORDS: dict[str, list[str]] = {
                     "cybersecurity", "exploit", "audit"],
     "education":   ["education", "tutorial", "learn", "course", "teach",
                     "student", "homework", "quiz"],
-    "game":        ["game", "gaming", "unity", "unreal", "npc", "rpg",
-                    "simulation"],
+    "game":        ["game", "gaming", "unity", "unreal", "npc", "rpg"],
     "healthcare":  ["health", "hospital", "clinical", "patient", "diagnosis",
                     "therapy", "mental health"],
     "legal":       ["legal", "law", "contract", "compliance", "regulation"],
@@ -74,108 +77,28 @@ DOMAIN_KEYWORDS: dict[str, list[str]] = {
 
 
 def _classify_domains(repo_name: str, desc: str, topics: list[str]) -> list[str]:
-    """基于仓库名、描述、topics 匹配领域标签，返回 list[domain_id]。"""
-    text = " ".join([
-        repo_name.lower(),
-        (desc or "").lower(),
-        " ".join(t.lower() for t in topics),
-    ])
-    matched: list[str] = []
-    for domain_id, kws in DOMAIN_KEYWORDS.items():
-        if any(kw in text for kw in kws):
-            matched.append(domain_id)
-    return matched
+    text = " ".join([repo_name.lower(), (desc or "").lower(),
+                     " ".join(t.lower() for t in topics)])
+    return [d for d, kws in DOMAIN_KEYWORDS.items() if any(k in text for k in kws)]
 
 
-def _parse_community_flags(items_raw) -> dict:
-    """从 items 字段解析社区平台标志和文字信息（不含 base64 QR 图片）。"""
-    items = items_raw if isinstance(items_raw, list) else []
-    if not items and isinstance(items_raw, str):
-        try:
-            items = json.loads(items_raw)
-        except Exception:
-            items = []
+# ─── 从 results.jsonl 构建社区索引（正确使用 result_from_dict）──────────────
 
-    flags = {
-        "has_wechat": 0,
-        "has_discord": 0,
-        "has_qq": 0,
-        "has_telegram": 0,
-        "has_slack": 0,
-    }
-    community_items: list[dict] = []
-
-    for item in (items or []):
-        if not isinstance(item, dict):
-            continue
-        platform = (item.get("platform") or "").lower()
-        delivery = (item.get("delivery") or "").lower()
-
-        if platform == "wechat":
-            flags["has_wechat"] = 1
-        elif platform == "discord":
-            flags["has_discord"] = 1
-        elif platform == "qq":
-            flags["has_qq"] = 1
-        elif platform == "telegram":
-            flags["has_telegram"] = 1
-        elif platform == "slack":
-            flags["has_slack"] = 1
-
-        # 保留文字类信息（跳过 base64 QR 图片，体积过大且已过期）
-        if delivery in ("qr_image",):
-            note = (item.get("note") or "")[:100]
-            community_items.append({
-                "platform": platform,
-                "delivery": "qr_image",
-                "note": note,
-                # 不存 img_data_url（过期 + 占用大量空间）
-            })
-        elif platform in ("wechat", "discord", "qq", "telegram", "slack",
-                          "twitter", "github", "website"):
-            value = str(item.get("value") or "")[:200]
-            note  = (item.get("note") or "")[:100]
-            member_count = item.get("member_count")
-            verified = bool(item.get("verified"))
-            entry: dict = {"platform": platform, "delivery": delivery}
-            if value:
-                entry["value"] = value
-            if note:
-                entry["note"] = note
-            if member_count:
-                entry["member_count"] = member_count
-            if verified:
-                entry["verified"] = True
-            community_items.append(entry)
-
-    count = sum(1 for v in flags.values() if v)
-    return {
-        **flags,
-        "community_count": count,
-        "community_items": community_items,
-    }
-
-
-# ─── 主入口 ──────────────────────────────────────────────────────────────────
-
-def run_full_import(verbose: bool = True) -> int:
+def _build_community_index(verbose: bool = False) -> dict[str, dict]:
     """
-    全量导入（幂等）。
-    - 若 repo 已存在：更新 stars / community 数据
-    - 若 repo 不存在：插入并分配新 AR-XXXXX 编号
-    返回本次新增数量。
+    读取 results.jsonl，用 result_from_dict 反序列化，
+    构建 full_name → community_info 索引。
+    保留完整 items（含 img_data_url QR 码）和 summary_cn。
     """
-    if verbose:
-        print("  [full_import] 加载 repos.json ...")
-    with open(REPOS_JSON, encoding="utf-8") as f:
-        repos_raw: list[dict] = json.load(f)
+    try:
+        from github_radar.models import result_from_dict
+        use_model = True
+    except ImportError:
+        if verbose:
+            print("  [full_import] ⚠ github_radar 不可导入，用 JSON 兜底解析")
+        use_model = False
 
-    if verbose:
-        print(f"  [full_import] repos.json 共 {len(repos_raw):,} 条")
-        print("  [full_import] 加载 results.jsonl 社区数据 ...")
-
-    # 构建社区数据索引: full_name → {flags, summary_cn}
-    community_index: dict[str, dict] = {}
+    index: dict[str, dict] = {}
     try:
         with open(RESULTS_JSONL, encoding="utf-8") as f:
             for line in f:
@@ -186,36 +109,99 @@ def run_full_import(verbose: bool = True) -> int:
                     d = json.loads(line)
                 except Exception:
                     continue
+
                 fn = d.get("full_name") or d.get("name", "")
                 if not fn:
                     continue
-                flags = _parse_community_flags(d.get("items") or d.get("communities"))
-                community_index[fn] = {
-                    **flags,
-                    "summary_cn": (d.get("summary_cn") or "")[:500],
-                    "community_items": flags.get("community_items", []),
+
+                # 用 result_from_dict 正确反序列化，保留所有字段
+                if use_model:
+                    try:
+                        r = result_from_dict(d)
+                        items = [
+                            {
+                                "platform":     item.platform,
+                                "delivery":     item.delivery,
+                                "value":        item.value or "",
+                                "is_valid":     item.is_valid,
+                                "note":         item.note or "",
+                                "member_count": item.member_count,
+                                "verified":     item.verified,
+                                "img_data_url": item.img_data_url or "",  # QR 码 base64
+                                "qr_data_url":  item.qr_data_url or "",
+                            }
+                            for item in (r.items or [])
+                        ]
+                        summary_cn = r.summary_cn or ""
+                        stars = r.stars
+                    except Exception:
+                        items = d.get("items") or []
+                        summary_cn = d.get("summary_cn") or ""
+                        stars = d.get("stars") or 0
+                else:
+                    items = d.get("items") or []
+                    if isinstance(items, str):
+                        try:
+                            items = json.loads(items)
+                        except Exception:
+                            items = []
+                    summary_cn = d.get("summary_cn") or ""
+                    stars = d.get("stars") or 0
+
+                # 提取平台标志位
+                platforms = {(item.get("platform") or "").lower() for item in items
+                             if isinstance(item, dict)}
+                index[fn] = {
+                    "summary_cn":      summary_cn[:500],
+                    "items":           items,
+                    "has_wechat":      int("wechat" in platforms),
+                    "has_discord":     int("discord" in platforms),
+                    "has_qq":          int("qq" in platforms),
+                    "has_telegram":    int("telegram" in platforms),
+                    "has_slack":       int("slack" in platforms),
+                    "community_count": len(platforms & {"wechat","discord","qq","telegram","slack"}),
                 }
     except FileNotFoundError:
         if verbose:
-            print("  [full_import] ⚠ results.jsonl 不存在，跳过社区数据")
+            print(f"  [full_import] ⚠ 找不到 {RESULTS_JSONL}")
 
+    return index
+
+
+# ─── 主入口 ──────────────────────────────────────────────────────────────────
+
+def run_full_import(verbose: bool = True) -> int:
+    """
+    全量导入（幂等）。
+    - 新仓库：从 repos.json 插入，用 results.jsonl 富化
+    - 已存在：更新 stars / summary / community 数据
+    返回本次新增数量。
+    """
+    if verbose:
+        print("  [full_import] 加载 repos.json ...")
+    with open(REPOS_JSON, encoding="utf-8") as f:
+        repos_raw: list[dict] = json.load(f)
+    if verbose:
+        print(f"  [full_import] repos.json 共 {len(repos_raw):,} 条")
+        print("  [full_import] 构建社区索引（用 result_from_dict）...")
+
+    community_index = _build_community_index(verbose=verbose)
     if verbose:
         print(f"  [full_import] 社区索引 {len(community_index):,} 条")
 
     conn = get_conn()
     _ensure_table(conn)
 
-    # 获取当前最大编号
-    row = conn.execute("SELECT MAX(CAST(SUBSTR(ar_id,4) AS INTEGER)) FROM full_project_registry").fetchone()
+    row = conn.execute(
+        "SELECT MAX(CAST(SUBSTR(ar_id,4) AS INTEGER)) FROM full_project_registry"
+    ).fetchone()
     next_num = (row[0] or 0) + 1
 
-    # 获取已存在的 repo 集合
     existing = set(
         r[0] for r in conn.execute("SELECT repo FROM full_project_registry").fetchall()
     )
 
-    new_count = 0
-    updated_count = 0
+    new_count = updated_count = 0
     batch: list[tuple] = []
 
     for repo in repos_raw:
@@ -227,19 +213,20 @@ def run_full_import(verbose: bool = True) -> int:
         forks   = int(repo.get("forks_count") or repo.get("forks") or 0)
         desc    = (repo.get("description") or "")[:400]
         lang    = repo.get("language") or ""
-        topics  = repo.get("topics") or []
-        if isinstance(topics, str):
+        topics_raw = repo.get("topics") or []
+        if isinstance(topics_raw, str):
             try:
-                topics = json.loads(topics)
+                topics_raw = json.loads(topics_raw)
             except Exception:
-                topics = []
-        homepage  = repo.get("homepage") or ""
+                topics_raw = []
+        homepage   = repo.get("homepage") or ""
         gh_created = repo.get("created_at") or ""
-        name_only = full_name.split("/")[-1]
+        name_only  = full_name.split("/")[-1]
 
-        domain_tags = _classify_domains(full_name, desc, topics)
+        domain_tags = _classify_domains(full_name, desc, topics_raw)
         comm = community_index.get(full_name, {})
-        summary_cn = comm.get("summary_cn", "")
+        summary_cn  = comm.get("summary_cn", "")
+        items_json  = json.dumps(comm.get("items", []), ensure_ascii=False)
 
         if full_name not in existing:
             ar_id = f"AR-{next_num:05d}"
@@ -247,7 +234,7 @@ def run_full_import(verbose: bool = True) -> int:
             new_count += 1
             batch.append((
                 ar_id, full_name, name_only, stars, forks, desc, lang,
-                json.dumps(topics, ensure_ascii=False),
+                json.dumps(topics_raw, ensure_ascii=False),
                 homepage, gh_created,
                 json.dumps(domain_tags, ensure_ascii=False),
                 comm.get("has_wechat", 0),
@@ -256,28 +243,12 @@ def run_full_import(verbose: bool = True) -> int:
                 comm.get("has_telegram", 0),
                 comm.get("has_slack", 0),
                 comm.get("community_count", 0),
-                json.dumps(comm.get("community_items", []), ensure_ascii=False),
+                items_json,
                 summary_cn,
                 "2026-W19",
             ))
         else:
-            # 更新现有条目
             updated_count += 1
-            comm_part = ""
-            params = [
-                stars, forks, desc, lang,
-                json.dumps(topics, ensure_ascii=False),
-                json.dumps(domain_tags, ensure_ascii=False),
-                comm.get("has_wechat", 0),
-                comm.get("has_discord", 0),
-                comm.get("has_qq", 0),
-                comm.get("has_telegram", 0),
-                comm.get("has_slack", 0),
-                comm.get("community_count", 0),
-                json.dumps(comm.get("community_items", []), ensure_ascii=False),
-                summary_cn or None,
-                full_name,
-            ]
             conn.execute("""
                 UPDATE full_project_registry
                 SET stars=?, forks=?, description=?, language=?,
@@ -288,14 +259,26 @@ def run_full_import(verbose: bool = True) -> int:
                     summary_cn=COALESCE(NULLIF(?,''), summary_cn),
                     updated_at=datetime('now')
                 WHERE repo=?
-            """, params)
+            """, [
+                stars, forks, desc, lang,
+                json.dumps(topics_raw, ensure_ascii=False),
+                json.dumps(domain_tags, ensure_ascii=False),
+                comm.get("has_wechat", 0),
+                comm.get("has_discord", 0),
+                comm.get("has_qq", 0),
+                comm.get("has_telegram", 0),
+                comm.get("has_slack", 0),
+                comm.get("community_count", 0),
+                items_json,
+                summary_cn or None,
+                full_name,
+            ])
 
-        # 批量写入
         if len(batch) >= 500:
             _batch_insert(conn, batch)
             batch = []
             if verbose:
-                print(f"  [full_import] 已导入 {new_count:,} 条新项目...", end="\r")
+                print(f"  [full_import] 已导入 {new_count:,} 条...", end="\r")
 
     if batch:
         _batch_insert(conn, batch)
@@ -309,7 +292,6 @@ def run_full_import(verbose: bool = True) -> int:
 
 
 def _ensure_table(conn: sqlite3.Connection) -> None:
-    """确保 full_project_registry 表存在（兼容 init_db 已建表的情况）。"""
     conn.execute("""
         CREATE TABLE IF NOT EXISTS full_project_registry (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -330,18 +312,21 @@ def _ensure_table(conn: sqlite3.Connection) -> None:
             has_telegram    INTEGER DEFAULT 0,
             has_slack       INTEGER DEFAULT 0,
             community_count INTEGER DEFAULT 0,
-            community_items TEXT DEFAULT '[]',
+            community_items TEXT DEFAULT '[]',  -- 完整 items JSON，含 img_data_url QR 码
             summary_cn      TEXT,
             first_seen      TEXT,
             updated_at      TEXT DEFAULT (datetime('now'))
         )
     """)
-    # 若旧表缺少 community_items 列，补加
-    try:
-        conn.execute("ALTER TABLE full_project_registry ADD COLUMN community_items TEXT DEFAULT '[]'")
-    except Exception:
-        pass
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_fpr_stars ON full_project_registry(stars DESC)")
+    # 兼容旧表：补列
+    for col, defn in [
+        ("community_items", "TEXT DEFAULT '[]'"),
+    ]:
+        try:
+            conn.execute(f"ALTER TABLE full_project_registry ADD COLUMN {col} {defn}")
+        except Exception:
+            pass
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_fpr_stars  ON full_project_registry(stars DESC)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_fpr_domain ON full_project_registry(domain_tags)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_fpr_wechat ON full_project_registry(has_wechat)")
     conn.commit()
