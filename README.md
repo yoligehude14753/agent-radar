@@ -2,6 +2,16 @@
 
 > AI/Agent 开源需求周报系统 —— 每周自动爬取 GitHub + PyPI + 本地群聊，更新 12 个应用领域的供需分析，输出含 diff 的 HTML 周报。
 
+## 线上访问（主站路径）
+
+生产入口挂在 **yoliyoli.uk** 的 Caddy 上（无需单独子域名 DNS）：
+
+**https://yoliyoli.uk/agent-radar/**
+
+上游为 GCP Cloud Run 镜像；Caddy 配置在本 monorepo 的 `easychat/Caddyfile`（生产 `docker-compose.prod.yml` 挂载）。
+
+备用直连（调试）：`https://agent-radar-674679032750.asia-east1.run.app`
+
 ## 北极星指标
 
 > **周报准时发布率**：每周一 09:00 前生成新版 HTML，含上周 vs 本周的数据对比。  
