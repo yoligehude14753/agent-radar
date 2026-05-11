@@ -1,0 +1,277 @@
+
+==================================================
+  agent-radar  周期：2026-W20
+==================================================
+
+▶ Step 1/4  爬取数据 ...
+  ★ anthropics/claude-code: 122,252 (+0)
+  ★ daytonaio/daytona: 72,321 (+0)
+  ★ getcursor/cursor: 32,846 (+0)
+  ★ BerriAI/litellm: 46,420 (+0)
+  ★ modelcontextprotocol/python-sdk: 22,936 (+0)
+  ★ punkpeye/awesome-mcp-servers: 86,632 (+0)
+  ★ browser-use/browser-use: 93,242 (+0)
+  ★ vercel-labs/agent-browser: 32,550 (+0)
+  ★ JoeanAmier/XHS-Downloader: 11,120 (+0)
+  ★ chatchat-space/Langchain-Chatchat: 37,987 (+0)
+  ★ langchain-ai/langchain: 136,320 (+0)
+  ★ run-llama/llama_index: 49,304 (+0)
+  ★ zhayujie/chatgpt-on-wechat: 44,289 (+0)
+  ★ lss233/kirara-ai: 18,746 (+0)
+  ★ 78/xiaozhi-esp32: 26,307 (+0)
+  ★ binary-husky/gpt_academic: 70,602 (+0)
+  ★ bytedance/deer-flow: 66,493 (+0)
+  ★ shibing624/MedicalGPT: 5,356 (+0)
+  ★ HKUDS/nanobot: 42,142 (+0)
+  ★ elie222/inbox-zero: 10,653 (+0)
+  ★ ZhuLinsen/daily_stock_analysis: 34,993 (+0)
+  ★ hsliuping/TradingAgents-CN: 26,173 (+0)
+  ★ xpzouying/xiaohongshu-mcp: 13,490 (+0)
+  ★ cs-lazy-tools/ChatGPT-On-CS: 3,956 (+0)
+  ★ comfyanonymous/ComfyUI: 112,276 (+0)
+  ★ OpenBMB/MiniCPM-o: 24,533 (+0)
+  ⚠ GitHub API failed: canopylabs/orpheus-tts
+  ★ fixie-ai/ultravox: 4,415 (+0)
+  ★ 78/xiaozhi-esp32: 26,307 (+0)
+  📦 selenium: 12,971,339/week
+  📦 caldav: 88,664/week
+  📦 pyppeteer: 404,672/week
+  📦 tiktoken: 38,637,049/week
+  📦 todoist-api-python: 38,063/week
+  📦 chromadb: 3,506,182/week
+  📦 schedule: 2,281,457/week
+  📦 playwright: 19,095,552/week
+  📦 faster-whisper: 1,929,258/week
+  📦 nonebot2: 14,980/week
+  📦 pydantic-ai: 10,147,333/week
+  📦 exchangelib: 395,124/week
+  📦 onnxruntime: 17,417,535/week
+  📦 rdkit: 1,522,068/week
+  📦 gpiozero: 87,173/week
+  📦 accelerate: 6,298,835/week
+  📦 moviepy: 1,312,011/week
+  📦 deepchem: 63,492/week
+  📦 openai-agents: 7,173,524/week
+  📦 zipline-reloaded: 6,281/week
+  📦 pyfolio-reloaded: 9,061/week
+  📦 sentence-transformers: 6,156,537/week
+  📦 aider-chat: 236,842/week
+  📦 browser-use: 2,728,097/week
+  📦 yfinance: 4,483,812/week
+  📦 pyaudio: 197,986/week
+  📦 weibo-scraper: 57/week
+  📦 agentops: 186,557/week
+  📦 scrapy: 852,789/week
+  📦 parsel: 954,534/week
+  📦 crewai: 2,004,252/week
+  📦 langchain-core: 24,788,746/week
+  📦 insightface: 218,262/week
+  💬 coding: 1565 msgs
+  💬 browser: 160 msgs
+  💬 rag: 301 msgs
+  💬 creative: 86 msgs
+  💬 chatbot: 143 msgs
+  💬 personal: 0 msgs
+  💬 finance: 240 msgs
+  💬 ai4science: 21 msgs
+  💬 social: 155 msgs
+  💬 infra: 132 msgs
+  💬 multimodal: 133 msgs
+  💬 hardware: 124 msgs
+
+▶ Step 1b/4  分析 Top Repos ...
+  有效 repo 数: 36,416
+  coding       hist=['github/spec-kit', 'upstash/context7']  recent=['github/spec-kit', 'code-yeongyu/oh-my-openagent']
+  infra        hist=['bytedance/deer-flow', 'jeecgboot/JeecgBoot']  recent=['ruvnet/ruflo', 'NirDiamant/agents-towards-production']
+  browser      hist=['browser-use/browser-use', 'huginn/huginn']  recent=['Panniantong/Agent-Reach', 'stepfun-ai/gelab-zero']
+  rag          hist=['bytedance/deer-flow', 'jeecgboot/JeecgBoot']  recent=['thedotmack/claude-mem', 'ruvnet/ruflo']
+  chatbot      hist=['xtekky/gpt4free', 'zhayujie/chatgpt-on-wechat']  recent=['ruvnet/ruflo', 'iOfficeAI/AionUi']
+  ai4science   hist=['binary-husky/gpt_academic', 'numpy/numpy']  recent=['wanshuiyin/Auto-claude-code-research-in-sleep', 'Galaxy-Dawn/claude-scholar']
+  personal     hist=['bytedance/deer-flow', 'thedotmack/claude-mem']  recent=['thedotmack/claude-mem', 'HKUDS/nanobot']
+  finance      hist=['vnpy/vnpy', 'ZhuLinsen/daily_stock_analysis']  recent=['ZhuLinsen/daily_stock_analysis', 'hsliuping/TradingAgents-CN']
+  social       hist=['macrozheng/mall', 'NanmiCoder/MediaCrawler']  recent=['Panniantong/Agent-Reach', 'xpzouying/xiaohongshu-mcp']
+  creative     hist=['grafana/grafana', 'influxdata/influxdb']  recent=['fluxerapp/fluxer', 'AIDC-AI/Pixelle-Video']
+  multimodal   hist=['huggingface/transformers', 'yt-dlp/yt-dlp']  recent=['neuphonic/neutts', 'torvalds/AudioNoise']
+  hardware     hist=['ClickHouse/ClickHouse', 'NaiboWang/EasySpider']  recent=['neuphonic/neutts', 'Arthur-Ficial/apfel']
+  近一年 top10: ['obra/superpowers', 'github/spec-kit', 'msitarzewski/agency-agents']
+  近一周 top0: []
+  抓取 General Top 项目活动 ...
+  activity + analysis: HKUDS/nanobot
+  activity + analysis: chenglou/pretext
+  activity + analysis: code-yeongyu/oh-my-openagent
+  activity + analysis: garrytan/gstack
+  activity + analysis: github/spec-kit
+  activity + analysis: gsd-build/get-shit-done
+  activity + analysis: msitarzewski/agency-agents
+  activity + analysis: obra/superpowers
+  activity + analysis: ruvnet/ruflo
+  activity + analysis: thedotmack/claude-mem
+
+▶ Step 2/4  计算评分 ...
+  coding        supply=100  demand= 94  [Track-A]
+  infra         supply= 60  demand= 66  [Track-A]
+  browser       supply= 39  demand= 72  [Track-A]
+  rag           supply= 76  demand= 63  [Track-A]
+  chatbot       supply= 57  demand= 43  [Track-A]
+  ai4science    supply= 85  demand= 43  [Track-B]
+  personal      supply=  0  demand= 46  [Track-B]
+  finance       supply= 35  demand= 45  [Track-A]
+  social        supply= 18  demand= 38  [Track-A]
+  creative      supply= 37  demand= 36  [Track-A]
+  multimodal    supply= 29  demand= 31  [Track-A]
+  hardware      supply= 23  demand= 24  [Track-A]
+
+▶ Step 3/4  生成 Diff ...
+  对比上周 2026-W19
+  ai4science    demand +18  supply +0
+  browser       demand +1  supply +0
+  chatbot       demand +8  supply +0
+  creative      demand +18  supply +0
+  finance       demand +7  supply +0
+  hardware      demand +4  supply +0
+  infra         demand +2  supply +0
+  personal      demand +11  supply +0
+  rag           demand +2  supply +0
+  social        demand +2  supply +0
+
+▶ Step 3b/4  更新项目注册表 ...
+  新增项目 0 个
+  存量 star 更新（GitHub API）...
+  [registry] AR-0001 binary-husky/gpt_academic  ⭐70602 (+8)
+  [registry] AR-0002 eugeneyan/applied-ml  ⭐28804 (+3)
+  [registry] AR-0003 floodsung/Deep-Learning-Papers-Reading-Roadmap  ⭐39496 (+0)
+  [registry] AR-0004 kaixindelele/ChatPaper  ⭐19462 (+0)
+  [registry] AR-0005 microsoft/JARVIS  ⭐24710 (+8)
+  [registry] AR-0006 numpy/numpy  ⭐31999 (+4)
+  [registry] AR-0007 terryum/awesome-deep-learning-papers  ⭐26129 (-1)
+  [registry] AR-0008 Galaxy-Dawn/claude-scholar  ⭐3598 (+29)
+  [registry] AR-0009 K-Dense-AI/claude-scientific-skills  ⭐20565 (+115)
+  [registry] AR-0010 K-Dense-AI/claude-scientific-writer  ⭐1725 (+5)
+  [registry] AR-0011 Orchestra-Research/AI-Research-SKILLs  ⭐8162 (+66)
+  [registry] AR-0012 Shichun-Liu/Agent-Memory-Paper-List  ⭐1951 (+5)
+  [registry] AR-0013 dusklinux/dusky  ⭐2097 (+6)
+  [registry] AR-0014 wanshuiyin/Auto-claude-code-research-in-sleep  ⭐8704 (+175)
+  [registry] AR-0015 Jack-Cherish/python-spider  ⭐19605 (-2)
+  [registry] AR-0016 NaiboWang/EasySpider  ⭐43780 (+11)
+  [registry] AR-0017 NanmiCoder/MediaCrawler  ⭐49326 (+233)
+  [registry] AR-0018 browser-use/browser-use  ⭐93244 (+206)
+  [registry] AR-0019 huginn/huginn  ⭐49261 (+6)
+  [registry] AR-0020 jobbole/awesome-python-cn  ⭐30380 (-3)
+  [registry] AR-0021 CoderLuii/HolyClaude  ⭐2239 (+13)
+  [registry] AR-0022 K-Dense-AI/karpathy  ⭐1413 (+1)
+  [registry] AR-0023 Panniantong/Agent-Reach  ⭐19134 (+72)
+  [registry] AR-0024 pmh1314520/WebRPA  ⭐1680 (+4)
+  [registry] AR-0025 stepfun-ai/gelab-zero  ⭐2156 (+1)
+  [registry] AR-0026 chatchat-space/Langchain-Chatchat  ⭐37987 (+8)
+  [registry] AR-0027 mckaywrigley/chatbot-ui  ⭐33225 (+6)
+  [registry] AR-0028 ruvnet/ruflo  ⭐48439 (+1205)
+  [registry] AR-0029 xtekky/gpt4free  ⭐66200 (-1)
+  [registry] AR-0030 zhayujie/chatgpt-on-wechat  ⭐44289 (+63)
+  [registry] AR-0031 1186258278/OpenClawChineseTranslation  ⭐3785 (+6)
+  [registry] AR-0032 GiovanniPasq/agentic-rag-for-dummies  ⭐3250 (+7)
+  [registry] AR-0033 MemMachine/MemMachine  ⭐3067 (+0)
+  [registry] AR-0034 iOfficeAI/AionUi  ⭐24334 (+180)
+  [registry] AR-0035 ComposioHQ/awesome-claude-skills  ⭐59073 (+213)
+  [registry] AR-0036 code-yeongyu/oh-my-openagent  ⭐56981 (+222)
+  [registry] AR-0037 github/spec-kit  ⭐95178 (+1274)
+  [registry] AR-0038 jeecgboot/JeecgBoot  ⭐46159 (+28)
+  [registry] AR-0039 punkpeye/awesome-mcp-servers  ⭐86632 (+2383)
+  [registry] AR-0040 sansan0/TrendRadar  ⭐57192 (+100)
+  [registry] AR-0041 upstash/context7  ⭐54951 (+106)
+  [registry] AR-0042 czlonkowski/n8n-mcp  ⭐20512 (+111)
+  [registry] AR-0043 PicoTrex/Awesome-Nano-Banana-images  ⭐22653 (+29)
+  [registry] AR-0044 davideuler/architecture.of.internet-product  ⭐20750 (+2)
+  [registry] AR-0045 e2b-dev/awesome-ai-agents  ⭐27748 (+27)
+  [registry] AR-0046 eyaltoledano/claude-task-master  ⭐27081 (+674)
+  [registry] AR-0047 grafana/grafana  ⭐73657 (+680)
+  [registry] AR-0048 influxdata/influxdb  ⭐31490 (+121)
+  [registry] AR-0049 onnx/onnx  ⭐20798 (+210)
+  [registry] AR-0050 AIDC-AI/Pixelle-Video  ⭐14544 (+11127)
+  [registry] AR-0051 FireRedTeam/FireRed-OpenStoryline  ⭐2600 (+943)
+  [registry] AR-0052 YouMind-OpenLab/awesome-nano-banana-pro-prompts  ⭐11914 (+1297)
+  [registry] AR-0053 alichherawalla/off-grid-mobile-ai  ⭐2033 (+711)
+  [registry] AR-0054 fluxerapp/fluxer  ⭐8558 (+845)
+  [registry] AR-0055 vita-epfl/Stable-Video-Infinity  ⭐2418 (+129)
+  [registry] AR-0056 ZhuLinsen/daily_stock_analysis  ⭐34993 (+6930)
+  [registry] AR-0057 firefly-iii/firefly-iii  ⭐23214 (+352)
+  [registry] AR-0058 hsliuping/TradingAgents-CN  ⭐26173 (+2752)
+  [registry] AR-0059 mxgmn/WaveFunctionCollapse  ⭐25036 (+208)
+  [registry] AR-0060 vnpy/vnpy  ⭐40342 (+1493)
+  [registry] AR-0061 brokermr810/QuantDinger  ⭐4452 (+3363)
+  [registry] AR-0062 imbue-bit/AlphaGPT  ⭐1994 (+62)
+  [registry] AR-0063 oficcejo/aiagents-stock  ⭐1321 (+178)
+  [registry] AR-0064 ClickHouse/ClickHouse  ⭐47327 (+624)
+  [registry] AR-0065 YunaiV/ruoyi-vue-pro  ⭐37021 (+818)
+  [registry] AR-0066 littlecodersh/ItChat  ⭐26465 (-181)
+  [registry] AR-0067 raysan5/raylib  ⭐32871 (+972)
+  [registry] AR-0068 Arthur-Ficial/apfel  ⭐5298 (+3474)
+  [registry] AR-0069 Dicklesworthstone/beads_viewer  ⭐1511 (+68)
+  [registry] AR-0070 davidmonterocrespo24/velxio  ⭐1927 (+766)
+  [registry] AR-0071 dorianborian/sesame-robot  ⭐2025 (+601)
+  [registry] AR-0072 neuphonic/neutts  ⭐5830 (+709)
+  [registry] AR-0073 666ghj/BettaFish  ⭐40840 (+676)
+  [registry] AR-0074 bytedance/deer-flow  ⭐66495 (+8467)
+  [registry] AR-0075 HKUDS/DeepTutor  ⭐23777 (+12520)
+  [registry] AR-0076 NirDiamant/agents-towards-production  ⭐19084 (+450)
+  [registry] AR-0077 eigent-ai/eigent  ⭐13954 (+532)
+  [registry] AR-0078 yichuan-w/LEANN  ⭐10979 (+392)
+  [registry] AR-0079 Fosowl/agenticSeek  ⭐26261 (+438)
+  [registry] AR-0080 babysor/MockingBird  ⭐36896 (-3)
+  [registry] AR-0081 huggingface/transformers  ⭐160443 (+1616)
+  [registry] AR-0082 yt-dlp/yt-dlp  ⭐161511 (+6599)
+  [registry] AR-0083 PeonPing/peon-ping  ⭐4690 (+375)
+  [registry] AR-0084 QwenLM/Qwen3-Omni  ⭐3736 (+95)
+  [registry] AR-0085 torvalds/AudioNoise  ⭐4359 (+42)
+  [registry] AR-0086 ysharma3501/LuxTTS  ⭐3875 (+315)
+  [registry] AR-0087 HKUDS/nanobot  ⭐42143 (+117)
+  [registry] AR-0088 ShareX/ShareX  ⭐37444 (+1369)
+  [registry] AR-0089 sxyazi/yazi  ⭐37901 (+1918)
+  [registry] AR-0090 thedotmack/claude-mem  ⭐74458 (+658)
+  [registry] AR-0091 qwibitai/nanoclaw  ⭐28749 (+2219)
+  [registry] AR-0092 zeroclaw-labs/zeroclaw  ⭐31219 (+1733)
+  [registry] AR-0093 HeyPuter/puter  ⭐40990 (+836)
+  [registry] AR-0094 hangwin/mcp-chrome  ⭐11580 (+483)
+  [registry] AR-0095 Evil0ctal/Douyin_TikTok_Download_API  ⭐17770 (+815)
+  [registry] AR-0096 GorvGoyl/Clone-Wars  ⭐34177 (+161)
+  [registry] AR-0097 Molunerfinn/PicGo  ⭐26690 (+146)
+  [registry] AR-0098 macrozheng/mall  ⭐83574 (+278)
+  [registry] AR-0099 mvanhorn/last30days-skill  ⭐25361 (+6804)
+  [registry] AR-0100 ZeroLu/awesome-seedance  ⭐1701 (+355)
+  [registry] AR-0101 cporter202/social-media-scraping-apis  ⭐1146 (+232)
+  [registry] AR-0102 jnMetaCode/agency-agents-zh  ⭐10464 (+6608)
+  [registry] AR-0103 spider-ios/autox-release  ⭐976 (+22)
+  [registry] AR-0104 xpzouying/xiaohongshu-mcp  ⭐13490 (+889)
+  [registry] AR-0105 BerriAI/litellm  ⭐46422 (+203)
+  [registry] AR-0106 VoltAgent/awesome-openclaw-skills  ⭐48375 (+119)
+  [registry] AR-0107 anthropics/claude-code  ⭐122254 (+524)
+  [registry] AR-0108 chenglou/pretext  ⭐46574 (+97)
+  [registry] AR-0109 garrytan/gstack  ⭐92936 (+1216)
+  [registry] AR-0110 gsd-build/get-shit-done  ⭐61316 (+325)
+  [registry] AR-0111 langchain-ai/langchain  ⭐136320 (+146)
+  [registry] AR-0112 msitarzewski/agency-agents  ⭐95805 (+717)
+  [registry] AR-0113 obra/superpowers  ⭐185226 (+1839)
+
+▶ Step 3c/4  更新全量项目库 ...
+  [full_import] 加载 repos.json ...
+  [full_import] repos.json 共 42,653 条
+  [full_import] 构建社区索引（用 result_from_dict）...
+  [full_import] 社区索引 24,017 条
+
+  [full_import] 完成：新增 0 条，更新 42,653 条
+  全量库新增 0 个项目
+
+▶ Step 4/4  渲染 HTML ...
+  周报：/Users/yoligehude/Desktop/all/openall/agent-radar/output/report_latest.html
+  精选项目库：/Users/yoligehude/Desktop/all/openall/agent-radar/output/projects.html
+  [render_full] 主数据：6.4 MB，42,653 条
+  [render_full] 详情数据：15.6 MB，24,017 条有社区信息
+  [render_full] 已生成 /Users/yoligehude/Desktop/all/openall/agent-radar/output/full_projects.html
+  全量项目库：/Users/yoligehude/Desktop/all/openall/agent-radar/output/full_projects.html
+  [community] 加载 results.jsonl ...
+  [community] 共 24,018 条，开始渲染...
+
+✅ 报告已生成：/Users/yoligehude/Desktop/all/openall/agent-radar/output/community.html  （11008 个项目，22246 个群聊入口）
+  [community] 已生成 /Users/yoligehude/Desktop/all/openall/agent-radar/output/community.html（11,008 个有群聊项目，54.3 MB）
+  群聊社区报告：/Users/yoligehude/Desktop/all/openall/agent-radar/output/community.html
+
+✅ 全部生成完成

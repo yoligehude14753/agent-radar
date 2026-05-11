@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       skip_crawl:
-        description: 'Skip live crawl (use cached data)'
+        description: 'Skip live crawl (use cached data from GCS)'
         type: boolean
         default: false
 
@@ -16,14 +16,25 @@ env:
   PROJECT_ID: glass-sequence-494808-s7
   REGION: asia-east1
   IMAGE: asia-east1-docker.pkg.dev/glass-sequence-494808-s7/agent-radar/report
-  # GCS 存储桶（community.html 超过 Cloud Run 32MB 限制，放 GCS 公开服务）
   GCS_BUCKET: yoli-agent-radar
+
+# ── 架构说明 ──────────────────────────────────────────────────────────────────
+# 数据更新（find_communities.py 差量扫描）运行在本地 VM，结果上传 GCS：
+#   gs://yoli-agent-radar/cache/results.jsonl
+#   gs://yoli-agent-radar/cache/repos.json
+#
+# 本 CI 流程：
+#   1. 从 GCS 下载最新 results.jsonl / repos.json
+#   2. 运行 agent-radar 评分 + 渲染（main.py）
+#   3. 上传 community.html / community_data.json 到 GCS（超过 Cloud Run 32MB 限制）
+#   4. 构建 Docker 镜像（含 full_projects.html / data.json / detail.json）
+#   5. 部署到 Cloud Run
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # 把生成的 report 提交回仓库
+      contents: write   # 把生成的报告提交回仓库
       id-token: write   # Workload Identity Federation
 
     steps:
@@ -39,29 +50,27 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      # ── 3a. 差量更新 github-community-finder（7 天内新项目）──────
-      # 数据源：find_communities.py → repos.json / results.jsonl
-      # 执行后 agent-radar 的 full_import_usecase 会读取这份最新的 JSONL
-      - name: Update community finder data (differential, last 7 days)
-        if: ${{ inputs.skip_crawl != 'true' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.RADAR_GITHUB_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
-          COMMUNITY_MODEL: gpt-4.1-nano
-        working-directory: openall/projects/github-community-finder
-        run: |
-          pip install -r requirements.txt --quiet
-          # 差量扫描：只处理最近 7 天 push 的新项目，追加到 results.jsonl
-          python3 find_communities.py \
-            --mode scan \
-            --days-back 7 \
-            --min-stars 50 \
-            --out report_weekly_delta.html \
-            --concurrency 8
-          echo "差量扫描完成"
+      # ── 3. GCP Auth（提前，供后续 GCS / GCR 步骤使用）────────────
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-      # ── 3b. 爬取 + 评分 + 渲染（agent-radar 主流程）──────────
+      - uses: google-github-actions/setup-gcloud@v2
+
+      # ── 4. 从 GCS 下载最新爬取数据 ───────────────────────────────
+      - name: Download latest crawl data from GCS
+        run: |
+          mkdir -p openall/projects/github-community-finder/report_full.html.cache
+          # results.jsonl：完整社区检测结果（QR / summary / platform info）
+          gsutil cp gs://${{ env.GCS_BUCKET }}/cache/results.jsonl \
+            openall/projects/github-community-finder/report_full.html.cache/results.jsonl
+          # repos.json：完整 42k GitHub 仓库基础数据
+          gsutil cp gs://${{ env.GCS_BUCKET }}/cache/repos.json \
+            openall/projects/github-community-finder/report_full.html.cache/repos.json
+          wc -l openall/projects/github-community-finder/report_full.html.cache/results.jsonl
+
+      # ── 5. 运行 agent-radar 主流程 ───────────────────────────────
       - name: Generate weekly report
         env:
           GITHUB_TOKEN: ${{ secrets.RADAR_GITHUB_TOKEN }}
@@ -74,34 +83,41 @@ jobs:
             python3 src/main.py
           fi
 
-      # ── 4. 把报告提交回仓库（可选，保存历史）────────────────────
+      # ── 6. 提交报告 artifact 回仓库 ─────────────────────────────
       - name: Commit report artifact
         run: |
           git config user.name  "agent-radar[bot]"
           git config user.email "agent-radar@yoliyoli.uk"
-          cp output/report_latest.html docs/report_latest.html
-          git add docs/report_latest.html data/agent_radar.db
+          cp output/report_latest.html docs/report_latest.html 2>/dev/null || true
+          git add docs/ data/agent_radar.db 2>/dev/null || true
           git diff --cached --quiet || git commit -m "chore(report): auto-update $(date -u +%Y-W%V)"
-          git push
+          git push || true
 
-      # ── 5a. GCP Auth ─────────────────────────────────────────────
-      - id: auth
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-
-      - uses: google-github-actions/setup-gcloud@v2
-
-      # ── 5b. 上传 community.html 到 GCS（超过 Cloud Run 32MB 上限）─
-      - name: Upload community.html to GCS
+      # ── 7. 上传大文件到 GCS（超 Cloud Run 32MB 限制）────────────
+      - name: Upload community report to GCS
         run: |
+          # community.html（HTML shell，~17KB）
           gsutil -h "Content-Type:text/html;charset=UTF-8" \
-                 -h "Cache-Control:public,max-age=86400" \
+                 -h "Cache-Control:public,max-age=3600" \
             cp output/community.html gs://${{ env.GCS_BUCKET }}/community.html
           gsutil acl ch -u AllUsers:R gs://${{ env.GCS_BUCKET }}/community.html
-          echo "community.html 已上传至 https://storage.googleapis.com/${{ env.GCS_BUCKET }}/community.html"
 
-      # ── 6. Build + Push Docker image ────────────────────────────
+          # community_data.json（REPOS 数据 + QR 图片，~54MB）
+          gsutil -h "Content-Type:application/json" \
+                 -h "Cache-Control:public,max-age=3600" \
+            cp output/community_data.json gs://${{ env.GCS_BUCKET }}/community_data.json
+          gsutil acl ch -u AllUsers:R gs://${{ env.GCS_BUCKET }}/community_data.json
+
+          echo "community.html → https://storage.googleapis.com/${{ env.GCS_BUCKET }}/community.html"
+
+      # ── 8. 上传更新后的缓存数据到 GCS（保持最新）────────────────
+      - name: Upload updated cache to GCS
+        run: |
+          gsutil cp \
+            openall/projects/github-community-finder/report_full.html.cache/results.jsonl \
+            gs://${{ env.GCS_BUCKET }}/cache/results.jsonl || true
+
+      # ── 9. Build + Push Docker image ────────────────────────────
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
 
@@ -115,7 +131,7 @@ jobs:
           docker push ${{ env.IMAGE }}:latest
           docker push ${{ env.IMAGE }}:$WEEK
 
-      # ── 7. Deploy to Cloud Run ───────────────────────────────────
+      # ── 10. Deploy to Cloud Run ──────────────────────────────────
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy agent-radar \
@@ -124,4 +140,5 @@ jobs:
             --region ${{ env.REGION }} \
             --project ${{ env.PROJECT_ID }} \
             --allow-unauthenticated \
+            --memory 512Mi \
             --quiet
