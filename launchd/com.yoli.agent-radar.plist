@@ -11,7 +11,9 @@
         <string>/Users/yoligehude/Desktop/all/openall/agent-radar/src/main.py</string>
     </array>
 
-    <!-- 每周一 06:00 执行 -->
+    <!-- 每周一 06:00 跑全量爬取（与 main_daily 的日更轻量爬区分） -->
+    <!-- 全量耗时 2-4h：12 领域评分 + 42k 项目 + 群聊 + HTML 渲染 -->
+    <!-- 日更轻量爬见 com.yoli.agent-radar.daily.plist（每天 07:00，Top 500） -->
     <key>StartCalendarInterval</key>
     <dict>
         <key>Weekday</key>

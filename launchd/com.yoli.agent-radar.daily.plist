@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.yoli.agent-radar.daily</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>/Users/yoligehude/Desktop/all/openall/agent-radar/src/main_daily.py</string>
+        <string>--top</string>
+        <string>500</string>
+    </array>
+
+    <!-- 每天 07:00 跑日更（在 aha 09:00 GitHub diff、10:00 日报之前完成） -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>7</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/yoligehude/Desktop/all/openall/agent-radar/logs/daily-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/yoligehude/Desktop/all/openall/agent-radar/logs/daily-stderr.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/yoligehude/Desktop/all/openall/agent-radar</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>GITHUB_TOKEN</key>
+        <string></string>
+        <key>ZERO_NOTIFY_URL</key>
+        <string>http://localhost:7070/notify</string>
+        <key>AR_DAILY_TOP_N</key>
+        <string>500</string>
+        <key>AR_P0_DAY_DELTA</key>
+        <string>500</string>
+        <key>AR_P0_NEW_HOT</key>
+        <string>5000</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- 失败后退避 5 分钟再重试 -->
+    <key>ThrottleInterval</key>
+    <integer>300</integer>
+</dict>
+</plist>
